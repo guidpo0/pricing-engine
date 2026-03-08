@@ -22,9 +22,10 @@ logger = logging.getLogger(__name__)
 # (1.1325)^(1/252) - 1 ≈ 0.049704% per business day
 _FALLBACK_CDI_DAILY_FACTOR: float = 0.049704 / 100.0
 
-# Max days of CDI history to cache. BCB SGS 12 /ultimos/ endpoint has a server
-# limit of 20 items. We fetch 20 and keep them for recent compounding checks.
-_CDI_FETCH_DAYS = 20
+# Max days of CDI history to cache. BCB SGS 12 /ultimos/ endpoint has no small
+# limit. We fetch ~5 years (1260 business days) to cover the vast majority of
+# open retail CDBs without needing the fallback calculation.
+_CDI_FETCH_DAYS = 1260
 
 
 @dataclass

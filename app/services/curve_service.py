@@ -166,7 +166,8 @@ async def _fetch_anbima_curves() -> tuple[list[dict], list[dict]]:
         (pre_curve, ipca_curve) — each a list of {tenor_years, rate} dicts.
     """
     # ANBIMA public estimated term structure endpoint (CSV-like, public)
-    # This endpoint returns tab-separated data for the last business day.
+    # This endpoint returns semicolon-separated data for the last business day,
+    # containing multiple tables. We want the "ETTJ Inflação Implicita (IPCA)" table.
     url = "https://www.anbima.com.br/informacoes/est-termo/CZ-down.asp"
     pre_curve: list[dict] = []
     ipca_curve: list[dict] = []
@@ -181,16 +182,29 @@ async def _fetch_anbima_curves() -> tuple[list[dict], list[dict]]:
             resp.raise_for_status()
             text = resp.text
 
-        # Parse ANBIMA CSV layout: rows are "YYYY-MM-DD\t<252du_vertex>\t<pre_rate>\t<ipca_rate>"
+        # Parse ANBIMA CSV layout: search for the start of the data table
+        # Header is: "Vertices;ETTJ IPCA;ETTJ PREF;Inflação Implícita"
         # Vertices are in business days (252 basis), rates in % p.a.
+        in_table = False
         for line in text.splitlines():
-            parts = line.strip().split("\t")
-            if len(parts) < 4:
+            parts = line.strip().split(";")
+            if not in_table:
+                if len(parts) >= 3 and parts[0] == "Vertices" and parts[1].startswith("ETTJ IPCA") and parts[2].startswith("ETTJ PREF"):
+                    in_table = True
                 continue
+            
+            # End of table or empty line
+            if not parts or not parts[0]:
+                break
+                
             try:
-                du = int(parts[1])
+                # Format: 126;9,5301;13,9902;4,0720
+                # Remove thousands separator (dot) if any, though usually only in >1000 vertices
+                du_str = parts[0].replace(".", "")
+                du = int(du_str)
+                ipca_rate = float(parts[1].replace(",", ".")) / 100.0
                 pre_rate = float(parts[2].replace(",", ".")) / 100.0
-                ipca_rate = float(parts[3].replace(",", ".")) / 100.0
+                
                 tenor_years = du / 252.0
                 pre_curve.append({"tenor_years": tenor_years, "rate": pre_rate})
                 ipca_curve.append({"tenor_years": tenor_years, "rate": ipca_rate})
