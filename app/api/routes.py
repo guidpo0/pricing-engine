@@ -168,10 +168,10 @@ class DocLanguage(str, Enum):
 )
 async def get_readme(
     lang: DocLanguage = Query(DocLanguage.EN, description="Language of the documentation (en or pt)"),
-    page: str = Query("home", description="Page to view: home, bonds, jobs, api"),
+    page: str = Query("home", description="Page to view: home, bonds, jobs, architecture, api"),
 ) -> HTMLResponse:
     """Return the raw markdown content of the project documentation rendered as HTML."""
-    if page not in ["home", "bonds", "jobs", "api"]:
+    if page not in ["home", "bonds", "jobs", "architecture", "api"]:
         page = "home"
         
     base_dir = Path(__file__).resolve().parent.parent.parent
@@ -194,10 +194,10 @@ async def get_readme(
         # Navigation Menu
         if lang == DocLanguage.EN:
             menu_title = "Navigation"
-            links = {"home": "Home", "bonds": "Supported Bonds", "jobs": "Background Jobs", "api": "API Endpoints"}
+            links = {"home": "Home", "bonds": "Supported Bonds", "architecture": "Architecture (ADR)", "jobs": "Background Jobs", "api": "API Endpoints"}
         else:
             menu_title = "Navegação"
-            links = {"home": "Início", "bonds": "Títulos Suportados", "jobs": "Jobs e Dados", "api": "API e Endpoints"}
+            links = {"home": "Início", "bonds": "Títulos Suportados", "architecture": "Decisões de Arquitetura", "jobs": "Jobs e Dados", "api": "API e Endpoints"}
             
         nav_items_html = ""
         for p, label in links.items():
