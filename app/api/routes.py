@@ -181,11 +181,10 @@ async def get_readme(
     try:
         content = readme_path.read_text(encoding="utf-8")
         
-        # Convert markdown to HTML
-        content_html = markdown.markdown(
-            content,
-            extensions=["fenced_code", "tables", "nl2br", "sane_lists"]
-        )
+        # Convert markdown to HTML (adding 'toc' extension)
+        md = markdown.Markdown(extensions=["toc", "fenced_code", "tables", "nl2br", "sane_lists"])
+        content_html = md.convert(content)
+        toc_html = getattr(md, "toc", "")
         
         # Language toggle links
         other_lang = "pt" if lang == DocLanguage.EN else "en"
@@ -195,7 +194,6 @@ async def get_readme(
         <div style="text-align: right; margin-bottom: 20px;">
             <a href="?lang={other_lang}">{other_lang_label}</a>
         </div>
-        <hr>
         '''
         
         html_template = f"""<!DOCTYPE html>
@@ -206,23 +204,77 @@ async def get_readme(
     <title>Tesouro Pricing API Docs</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown.min.css">
     <style>
+        body {{
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+            display: flex;
+            height: 100vh;
+        }}
+        .sidebar {{
+            width: 300px;
+            background-color: #f6f8fa;
+            border-right: 1px solid #d0d7de;
+            overflow-y: auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }}
+        .sidebar ul {{
+            list-style-type: none;
+            padding-left: 15px;
+        }}
+        .sidebar > div > ul {{
+            padding-left: 0;
+        }}
+        .sidebar a {{
+            color: #0969da;
+            text-decoration: none;
+            font-size: 14px;
+            display: block;
+            padding: 4px 0;
+        }}
+        .sidebar a:hover {{
+            text-decoration: underline;
+        }}
+        .content-wrapper {{
+            flex: 1;
+            overflow-y: auto;
+            padding: 45px;
+            background-color: #ffffff;
+        }}
         .markdown-body {{
             box-sizing: border-box;
-            min-width: 200px;
             max-width: 980px;
             margin: 0 auto;
-            padding: 45px;
         }}
         @media (max-width: 767px) {{
-            .markdown-body {{
+            body {{
+                flex-direction: column;
+            }}
+            .sidebar {{
+                width: 100%;
+                height: 30vh;
+                border-right: none;
+                border-bottom: 1px solid #d0d7de;
+            }}
+            .content-wrapper {{
+                height: 70vh;
                 padding: 15px;
             }}
         }}
     </style>
 </head>
-<body class="markdown-body">
-{lang_nav_html}
-{content_html}
+<body>
+    <div class="sidebar">
+        {lang_nav_html}
+        <h3>TOC / Menu</h3>
+        {toc_html}
+    </div>
+    <div class="content-wrapper">
+        <div class="markdown-body">
+            {content_html}
+        </div>
+    </div>
 </body>
 </html>"""
         return HTMLResponse(content=html_template, status_code=200)
