@@ -47,6 +47,7 @@ _FALLBACK_IPCA_CURVE: list[dict] = [
 ]
 
 _FALLBACK_SELIC_RATE: float = 0.1325  # 13.25% p.a.
+_FALLBACK_LFT_VNA: float = 18_503.43  # LFT VNA fallback (approximate, early March 2026)
 
 
 @dataclass
@@ -54,6 +55,7 @@ class CurveCache:
     pre_curve: list[dict] = field(default_factory=lambda: list(_FALLBACK_PRE_CURVE))
     ipca_curve: list[dict] = field(default_factory=lambda: list(_FALLBACK_IPCA_CURVE))
     selic_rate: float = _FALLBACK_SELIC_RATE
+    lft_vna: float = _FALLBACK_LFT_VNA
     last_updated: datetime | None = None
     using_fallback: bool = True
 
@@ -105,6 +107,51 @@ async def _fetch_selic_rate() -> float:
         # Rate is annualised daily SELIC — convert from % to decimal
         rate_pct = float(data[0]["valor"])
         return rate_pct / 100.0
+
+
+async def _fetch_lft_vna() -> float:
+    """
+    Compute the current LFT (Tesouro Selic) VNA by projecting the anchor value
+    stored in settings forward using recent daily SELIC factors (BCB SGS series 12).
+
+    BCB SGS series 12 = SELIC accumulated daily factor (% a.d.).
+    The LFT VNA starts at R$ 1,000 on 01/07/2000 and grows by this factor each
+    business day. We anchor to a recently known VNA and accumulate only the
+    incremental factors since that anchor date to avoid 25-year history downloads.
+    """
+    from datetime import date as _date
+
+    anchor_date = _date.fromisoformat(settings.lft_vna_anchor_date)
+    today = _date.today()
+
+    if today <= anchor_date:
+        # anchor_date is in the future or today — use anchor directly
+        return settings.lft_vna_anchor
+
+    # Fetch daily factors from the day after anchor_date up to today
+    start_str = (anchor_date.strftime("%d/%m/%Y"))
+    end_str = today.strftime("%d/%m/%Y")
+    url = (
+        f"{settings.bcb_sgs_base_url}.12/dados"
+        f"?dataInicial={start_str}&dataFinal={end_str}&formato=json"
+    )
+    async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+
+    # Compound anchor VNA with each business day factor AFTER the anchor date
+    vna = settings.lft_vna_anchor
+    for entry in data:
+        # Parse entry date to skip the anchor date itself
+        day, month, year = entry["data"].split("/")
+        entry_date = _date(int(year), int(month), int(day))
+        if entry_date <= anchor_date:
+            continue
+        daily_factor = float(entry["valor"].replace(",", ".")) / 100.0
+        vna *= (1 + daily_factor)
+
+    return round(vna, 6)
 
 
 async def _fetch_anbima_curves() -> tuple[list[dict], list[dict]]:
@@ -168,18 +215,21 @@ async def refresh_curves() -> None:
     try:
         pre_curve, ipca_curve = await _fetch_anbima_curves()
         selic_rate = await _fetch_selic_rate()
+        lft_vna = await _fetch_lft_vna()
         _cache = CurveCache(
             pre_curve=pre_curve,
             ipca_curve=ipca_curve,
             selic_rate=selic_rate,
+            lft_vna=lft_vna,
             last_updated=datetime.utcnow(),
             using_fallback=False,
         )
         logger.info(
-            "Curves refreshed. Pre points=%d, IPCA points=%d, SELIC=%.4f",
+            "Curves refreshed. Pre points=%d, IPCA points=%d, SELIC=%.4f, LFT VNA=%.4f",
             len(pre_curve),
             len(ipca_curve),
             selic_rate,
+            lft_vna,
         )
     except Exception as exc:  # noqa: BLE001
         logger.error("Error refreshing curves: %s", exc)
@@ -211,12 +261,18 @@ def get_selic_rate() -> float:
     return _cache.selic_rate
 
 
+def get_lft_vna() -> float:
+    """Return the cached LFT VNA (Valor Nominal Atualizado pela SELIC acumulada)."""
+    return _cache.lft_vna
+
+
 def get_cache_info() -> dict:
     """Return metadata about the current cache state (for debug endpoint)."""
     return {
         "last_updated": _cache.last_updated.isoformat() if _cache.last_updated else None,
         "using_fallback": _cache.using_fallback,
         "selic_rate": _cache.selic_rate,
+        "lft_vna": _cache.lft_vna,
         "pre_curve_points": len(_cache.pre_curve),
         "ipca_curve_points": len(_cache.ipca_curve),
         "pre_curve": _cache.pre_curve,

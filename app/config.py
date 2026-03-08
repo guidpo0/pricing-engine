@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     bcb_sgs_base_url: str = "https://api.bcb.gov.br/dados/serie/bcdata.sgs"
     http_timeout: int = 30
 
+    # LFT (Tesouro Selic) VNA anchor
+    # The LFT VNA is computed by accumulating the daily SELIC factor (BCB SGS 12)
+    # from a known reference point. Update this pair whenever a reliable VNA is
+    # published by Tesouro Nacional / BCB (e.g. monthly).
+    lft_vna_anchor: float = 18_503.43   # VNA as of lft_vna_anchor_date
+    lft_vna_anchor_date: str = "2026-03-07"  # ISO date of the anchor value
+
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() == "production"

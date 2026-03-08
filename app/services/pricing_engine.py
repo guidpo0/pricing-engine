@@ -208,42 +208,35 @@ def price_lft(
     """
     Price a Tesouro Selic (LFT).
 
-    The LFT's VNA grows daily by the SELIC rate accumulated since Jul 2000.
-    The market price is the VNA discounted by any spread:
+    The LFT's VNA grows daily by the accumulated SELIC factor since 01/07/2000,
+    starting from a base value of R$ 1,000.
+
+    The market price is the VNA discounted by any spread over SELIC:
 
         PU = VNA_selic / (1 + spread) ^ years_to_maturity
 
-    When spread = 0 (typical for most retail Tesouro Selic transactions),
-    PU ≈ VNA_selic (bond trades at par).
+    When spread = 0, PU = VNA_selic (bond trades at par, as typical for retail
+    Tesouro Selic purchases).
 
-    For VNA_selic we use the BCB-published cumulative SELIC factor. As a
-    simplification we grab the current VNA from the inflation cache (which
-    tracks VNA_SELIC via the SELIC series) and fall back to a reference value.
-
-    Note: In production, the LFT VNA_selic is obtained from BCB SGS series 11
-    (accumulated factor from 07/2000). This implementation fetches the current
-    SELIC rate and approximates VNA_selic at 10,000 × factor.
+    The VNA_selic is fetched daily from BCB SGS series 12 (daily SELIC factor)
+    accumulated from the configured `LFT_VNA_ANCHOR` reference value.
     """
     ref = ref or date.today()
     tenor = years_to_maturity(maturity, ref)
     if tenor <= 0:
         raise ValueError("Bond has already matured.")
 
+    vna_selic = curve_service.get_lft_vna()
     selic_rate = curve_service.get_selic_rate()
 
-    # Approximate VNA_selic: Tesouro Selic face value at base = 1000 in 2000,
-    # accumulated ~13% p.a. for ~24 years. This is a reasonable approximation;
-    # the exact value is published daily by BCB.
-    # We use a constant reference that closely matches market circa 2026.
-    _VNA_SELIC_REF = 14_943.16  # approximate LFT VNA as of early 2026
-
-    effective_spread = spread  # spread over SELIC
-    pu = _VNA_SELIC_REF / (1 + effective_spread) ** tenor
+    # For spread = 0 (par trading), PU = VNA.
+    # For spread != 0, discount VNA by (1 + spread)^tenor.
+    pu = vna_selic / (1 + spread) ** tenor
 
     return PricingResult(
         pu=round(pu, 6),
         yield_rate=selic_rate,
-        vna=_VNA_SELIC_REF,
+        vna=round(vna_selic, 6),
         calculation_date=ref,
     )
 
