@@ -187,6 +187,17 @@ async def get_readme(
             extensions=["fenced_code", "tables", "nl2br", "sane_lists"]
         )
         
+        # Language toggle links
+        other_lang = "pt" if lang == DocLanguage.EN else "en"
+        other_lang_label = "Ver em Português 🇧🇷" if lang == DocLanguage.EN else "View in English 🇺🇸"
+        
+        lang_nav_html = f'''
+        <div style="text-align: right; margin-bottom: 20px;">
+            <a href="?lang={other_lang}">{other_lang_label}</a>
+        </div>
+        <hr>
+        '''
+        
         html_template = f"""<!DOCTYPE html>
 <html lang="{lang}">
 <head>
@@ -210,6 +221,7 @@ async def get_readme(
     </style>
 </head>
 <body class="markdown-body">
+{lang_nav_html}
 {content_html}
 </body>
 </html>"""
