@@ -203,7 +203,7 @@ async def get_readme(
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Tesouro Pricing API Docs</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown.min.css">
+    <link id="github-md-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown.min.css">
     <style>
         :root {{
             --bg-body: #ffffff;
@@ -295,8 +295,8 @@ async def get_readme(
     </div>
     <script>
         const htmlEl = document.documentElement;
-        const mdBody = document.getElementById('md-body');
         const themeToggle = document.getElementById('theme-toggle');
+        const themeCss = document.getElementById('github-md-css');
         
         // Load preference
         const savedTheme = localStorage.getItem('theme');
@@ -312,13 +312,13 @@ async def get_readme(
         
         function setDark() {{
             htmlEl.setAttribute('data-theme', 'dark');
-            htmlEl.setAttribute('data-color-mode', 'dark'); // For github-markdown-css
+            themeCss.href = 'https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown-dark.min.css';
             localStorage.setItem('theme', 'dark');
         }}
         
         function setLight() {{
             htmlEl.setAttribute('data-theme', 'light');
-            htmlEl.setAttribute('data-color-mode', 'light'); // For github-markdown-css
+            themeCss.href = 'https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown-light.min.css';
             localStorage.setItem('theme', 'light');
         }}
         
