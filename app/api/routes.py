@@ -162,21 +162,22 @@ class DocLanguage(str, Enum):
 
 @router.get(
     "/docs/readme",
-    summary="Get project documentation (README) as HTML",
+    summary="Get project documentation as HTML",
     tags=["System"],
     response_class=HTMLResponse,
 )
 async def get_readme(
     lang: DocLanguage = Query(DocLanguage.EN, description="Language of the documentation (en or pt)"),
+    page: str = Query("home", description="Page to view: home, bonds, api"),
 ) -> HTMLResponse:
-    """Return the raw markdown content of the project README rendered as HTML."""
+    """Return the raw markdown content of the project documentation rendered as HTML."""
+    if page not in ["home", "bonds", "api"]:
+        page = "home"
+        
     base_dir = Path(__file__).resolve().parent.parent.parent
-    docs_dir = base_dir / "docs"
+    docs_dir = base_dir / "docs" / lang.value
     
-    if lang == DocLanguage.PT:
-        readme_path = docs_dir / "README_pt.md"
-    else:
-        readme_path = docs_dir / "README_en.md"
+    readme_path = docs_dir / f"{page}.md"
         
     try:
         content = readme_path.read_text(encoding="utf-8")
@@ -186,15 +187,34 @@ async def get_readme(
         content_html = md.convert(content)
         toc_html = getattr(md, "toc", "")
         
-        # Language toggle links
+        # Language toggle links (preserve current page)
         other_lang = "pt" if lang == DocLanguage.EN else "en"
         other_lang_label = "Ver em Português 🇧🇷" if lang == DocLanguage.EN else "View in English 🇺🇸"
         
+        # Navigation Menu
+        if lang == DocLanguage.EN:
+            menu_title = "Navigation"
+            links = {"home": "Home", "bonds": "Supported Bonds", "api": "API Endpoints"}
+        else:
+            menu_title = "Navegação"
+            links = {"home": "Início", "bonds": "Títulos Suportados", "api": "API e Endpoints"}
+            
+        nav_items_html = ""
+        for p, label in links.items():
+            active_style = "font-weight: bold; text-decoration: underline;" if p == page else ""
+            nav_items_html += f'<li><a href="?lang={lang.value}&page={p}" style="{active_style}">{label}</a></li>\n'
+        
         lang_nav_html = f'''
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <a href="?lang={other_lang}">{other_lang_label}</a>
+            <a href="?lang={other_lang}&page={page}">{other_lang_label}</a>
             <button id="theme-toggle" style="cursor: pointer; background: none; border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 4px; color: var(--text-color);">🌓</button>
         </div>
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin-bottom: 20px;" />
+        <h3>{menu_title}</h3>
+        <ul>
+            {nav_items_html}
+        </ul>
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin-top: 20px; margin-bottom: 20px;" />
         '''
         
         html_template = f"""<!DOCTYPE html>
@@ -285,7 +305,7 @@ async def get_readme(
 <body>
     <div class="sidebar">
         {lang_nav_html}
-        <h3>TOC / Menu</h3>
+        <h3>TOC (On this page)</h3>
         {toc_html}
     </div>
     <div class="content-wrapper">
