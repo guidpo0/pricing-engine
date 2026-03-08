@@ -38,7 +38,7 @@ class TestHealthEndpoint:
 
 
 # ---------------------------------------------------------------------------
-# GET /bonds/price
+# POST /bonds/price
 # ---------------------------------------------------------------------------
 
 class TestBondPriceEndpoint:
@@ -59,7 +59,7 @@ class TestBondPriceEndpoint:
             mock_pu.return_value = PricingResult(
                 pu=711.32, yield_rate=0.12, vna=None, calculation_date=date(2026, 3, 7)
             )
-            response = client.get("/bonds/price", params={
+            response = client.post("/bonds/price", json={
                 "type": "PREFIXADO",
                 "maturity_date": "2029-01-01",
             })
@@ -88,28 +88,28 @@ class TestBondPriceEndpoint:
                 mock_pu.return_value = PricingResult(
                     pu=1000.0, yield_rate=0.13, vna=None, calculation_date=date(2026, 3, 7)
                 )
-                response = client.get("/bonds/price", params={
+                response = client.post("/bonds/price", json={
                     "type": bond_type,
                     "maturity_date": maturity,
                 })
             assert response.status_code == 200, f"Failed for {bond_type}: {response.text}"
 
     def test_invalid_bond_type_returns_422(self, client):
-        response = client.get("/bonds/price", params={
+        response = client.post("/bonds/price", json={
             "type": "INVALID_TYPE",
             "maturity_date": "2029-01-01",
         })
         assert response.status_code == 422
 
     def test_past_maturity_returns_422(self, client):
-        response = client.get("/bonds/price", params={
+        response = client.post("/bonds/price", json={
             "type": "PREFIXADO",
             "maturity_date": "2020-01-01",
         })
         assert response.status_code == 422
 
     def test_missing_params_returns_422(self, client):
-        response = client.get("/bonds/price", params={"type": "PREFIXADO"})
+        response = client.post("/bonds/price", json={"type": "PREFIXADO"})
         assert response.status_code == 422
 
     def test_spread_accepted(self, client):
@@ -120,10 +120,10 @@ class TestBondPriceEndpoint:
             mock_pu.return_value = PricingResult(
                 pu=700.0, yield_rate=0.135, vna=None, calculation_date=date(2026, 3, 7)
             )
-            response = client.get("/bonds/price", params={
+            response = client.post("/bonds/price", json={
                 "type": "PREFIXADO",
                 "maturity_date": "2030-01-01",
-                "spread": "0.005",
+                "spread": 0.005,
             })
 
         assert response.status_code == 200

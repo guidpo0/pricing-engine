@@ -28,54 +28,39 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
 # ---------------------------------------------------------------------------
 # Bond pricing endpoint
 # ---------------------------------------------------------------------------
 
-@router.get(
+@router.post(
     "/bonds/price",
     response_model=BondPriceResponse,
     summary="Get mark-to-market price for a bond",
     tags=["Pricing"],
 )
-async def get_bond_price(
-    type: BondType = Query(..., description="Bond type (PREFIXADO, PREFIXADO_JUROS, IPCA, IPCA_JUROS, SELIC)"),
-    maturity_date: date = Query(..., description="Bond maturity date (YYYY-MM-DD)"),
-    spread: float = Query(default=0.0, ge=-0.05, le=0.05, description="Optional spread over benchmark (decimal)"),
-) -> BondPriceResponse:
+async def get_bond_price(body: BondPriceRequest) -> BondPriceResponse:
     """
     Calculate the Preço Unitário (PU) of a Tesouro Direto bond.
 
     Uses the current in-memory yield curve and VNA to produce a mark-to-market price.
     """
-    if maturity_date <= date.today():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "error": "INVALID_MATURITY",
-                "detail": "maturity_date must be in the future.",
-                "code": "INVALID_MATURITY",
-            },
-        )
-
     try:
-        result = calculate_pu(type, maturity_date, spread=spread)
+        result = calculate_pu(body.type, body.maturity_date, spread=body.spread)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"error": "PRICING_ERROR", "detail": str(exc), "code": "PRICING_ERROR"},
         ) from exc
     except Exception as exc:
-        logger.exception("Unexpected error pricing bond type=%s maturity=%s", type, maturity_date)
+        logger.exception("Unexpected error pricing bond type=%s maturity=%s", body.type, body.maturity_date)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "INTERNAL_ERROR", "detail": "Unexpected pricing error.", "code": "INTERNAL_ERROR"},
         ) from exc
 
     return BondPriceResponse(
-        bond_type=type,
-        maturity_date=maturity_date,
+        bond_type=body.type,
+        maturity_date=body.maturity_date,
         pu=result.pu,
         yield_rate=result.yield_rate,
         vna=result.vna,

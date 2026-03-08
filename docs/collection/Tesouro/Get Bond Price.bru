@@ -4,13 +4,15 @@ meta {
   seq: 1
 }
 
-get {
-  url: {{base_url}}/bonds/price?type=PREFIXADO&maturity_date=2029-01-01
-  body: none
+post {
+  url: {{base_url}}/bonds/price
+  body: json
   auth: none
 }
 
-query {
-  type: PREFIXADO
-  maturity_date: 2029-01-01
+body:json {
+  {
+    "type": "PREFIXADO",
+    "maturity_date": "2029-01-01"
+  }
 }
