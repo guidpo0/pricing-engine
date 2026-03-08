@@ -1,6 +1,6 @@
 # Como Começar e Endpoints
 
-Provemos um `Makefile` para facilitar o uso local.
+Disponibilizamos um `Makefile` para facilitar o uso local.
 
 ### Instalação e Execução
 
@@ -8,7 +8,7 @@ Provemos um `Makefile` para facilitar o uso local.
    ```bash
    make run
    ```
-2. **Teste a Aplicação:**
+2. **Execute os testes:**
    ```bash
    make test
    ```
@@ -17,34 +17,66 @@ Provemos um `Makefile` para facilitar o uso local.
 
 ## Endpoints da API
 
-Abaixo estão detalhados os endpoints interativos disponibilizados pela nossa API REST.
+### Tesouro Direto
 
-### `GET /bonds/price`
-Calcula o preço unitário (PU) exato de um título governamental.
+#### `GET /bonds/price`
+Calcula o Preço Unitário (PU) de um título público.
 
-**Exemplo:** Precificar um título IPCA+ vencendo em 2035 com 0,2% de spread (taxa) adicional.
 ```bash
 curl "http://localhost:8000/bonds/price?type=IPCA&maturity_date=2035-05-15&spread=0.002"
 ```
 
-### `POST /portfolio/value`
-Recebe uma quantidade fracionária de um título e calcula o valor financeiro total da posição (Mark-to-Market).
+#### `POST /portfolio/value`
+Recebe quantidade fracionária de um título e calcula o valor financeiro total da posição.
 
-**Exemplo:**
 ```bash
 curl -X POST "http://localhost:8000/portfolio/value" \
      -H "Content-Type: application/json" \
      -d '{"bond_type":"IPCA_JUROS","maturity_date":"2040-08-15","quantity":1.5}'
 ```
 
-### `GET /docs/readme`
-Retorna a documentação base em HTML.
-- `?lang=en` (padrão) para Inglês
-- `?lang=pt` para Português
-- `?page=home|bonds|api` para navegar.
+---
 
-### `GET /market/curves` e `GET /market/vna`
-Endpoints de sistema (debug) que retornam as curvas de juros e o VNA de inflação carregados na memória neste exato momento e usados para os cálculos.
+### CDB
 
-### `GET /health`
-Liveness probe. Verifica se o serviço está de pé e os dados do mercado foram carregados na inicialização.
+#### `POST /cdb/value`
+Calcula o valor atual (Mark-to-Model) de um investimento em CDB.
+
+```bash
+# CDI — 110% do CDI desde Jun/24
+curl -X POST "http://localhost:8000/cdb/value" \
+     -H "Content-Type: application/json" \
+     -d '{"principal":10000,"rate":1.10,"index_type":"CDI","purchase_date":"2024-06-01","maturity_date":"2027-06-01"}'
+
+# Prefixado — 12% a.a.
+curl -X POST "http://localhost:8000/cdb/value" \
+     -H "Content-Type: application/json" \
+     -d '{"principal":10000,"rate":0.12,"index_type":"PREFIXADO","purchase_date":"2024-01-01","maturity_date":"2027-01-01"}'
+
+# IPCA + 5%
+curl -X POST "http://localhost:8000/cdb/value" \
+     -H "Content-Type: application/json" \
+     -d '{"principal":10000,"rate":0.05,"index_type":"IPCA","purchase_date":"2024-01-01","maturity_date":"2027-01-01"}'
+```
+
+---
+
+### Dados de Mercado (Debug)
+
+#### `GET /market/curves`
+Retorna as curvas de juros (Pré e IPCA+) e a taxa SELIC carregadas na memória.
+
+#### `GET /market/vna`
+Retorna o VNA atual do IPCA+ e a série de inflação em cache.
+
+#### `GET /health`
+Liveness probe — verifica se o serviço está ativo e se os dados de mercado foram carregados com sucesso. Observe `"using_fallback": true` para detectar modo de degradação.
+
+---
+
+### Documentação
+
+#### `GET /docs/readme`
+Retorna a documentação em HTML.
+- `?lang=pt` — Português | `?lang=en` — Inglês (padrão)
+- `?page=home|bonds|cdb|integration|architecture|jobs|api`

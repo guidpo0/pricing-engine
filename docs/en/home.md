@@ -1,21 +1,23 @@
-# Tesouro Direto Pricing Engine
+# Fixed Income Pricing Engine
 
-A production-ready microservice that calculates exact mark-to-market prices (Preço Unitário - PU) for Brazilian government bonds from the **Tesouro Direto** program. 
+A production-ready microservice that calculates exact mark-to-market prices for the main Brazilian fixed income instruments: **Tesouro Direto** government bonds and **CDB** (Certificado de Depósito Bancário).
 
-The engine fetches live market data daily and uses the Brazilian 252 business-day convention to price all available retail government bonds.
+The system fetches real market data daily and uses the Brazilian 252 business-day convention for all pricing calculations.
 
 ## Data Sources
 
-The pricing formulas rely on two real-time Brazilian financial markets:
-1. **Yield Curves (ANBIMA)**: Daily nominal (Pre) and real (IPCA+) yield curves fetched automatically. Contains linear interpolation for arbitrary bond tenors.
-2. **Inflation Index (Banco Central do Brasil)**: Daily fetched IPCA monthly variations (SGS series 433) and SELIC target rates (SGS series 11) to rigorously calculate the current base VNA (Valor Nominal Atualizado).
+Pricing formulas depend on real market data fetched automatically:
 
-Background jobs handle pulling this data asynchronously onto the FastAPI service loops every day.
+1. **Yield Curves (ANBIMA)**: Nominal (Pre) and real (IPCA+) curves fetched daily. The engine linearly interpolates rates for any maturity.
+2. **Inflation & Daily Factor (Brazilian Central Bank)**: Monthly IPCA readings (SGS Series 433) and the daily SELIC/CDI factor (SGS Series 12), used to compute VNA and price CDI-indexed CDBs.
+3. **SELIC Target Rate (BCB SGS 11)**: The policy rate reference for Tesouro Selic bonds.
 
-## Tech Stack
+Background jobs (APScheduler) refresh this data asynchronously every day.
+
+## Technology Stack
 
 - **Python 3.12+**
-- **FastAPI** — High performance async API and OpenAPI docs.
-- **Pydantic** — Strict type enforcement and input validation.
-- **APScheduler** — Asynchronous cron scheduling for fetching external curves.
-- **Pytest** — Complete test suite for pricing permutations.
+- **FastAPI** — High-performance async API with OpenAPI (Swagger).
+- **Pydantic** — Strict typing and input validation.
+- **APScheduler** — Cron scheduling for curves and index updates.
+- **Pytest** — Full unit and integration test suite.

@@ -32,5 +32,5 @@ O código possui constantes de *fallback* "mockadas" (`_FALLBACK_PRE_CURVE`, `_F
 A requisição e atualização diária de dados acontece puramente em `asyncio` por meio da biblioteca `APScheduler`. Não usamos bibliotecas "pesadas" de controle de fila e workers separados (como o `Celery` + `RabbitMQ/Redis`).
 
 ### Por que?
-- Como temos poucas tarefas (atualizar duas variáveis a cada 24 horas), levantar processos separados (workers) e instâncias de mensageria traria uma dor de cabeça imensa de infraestrutura (DevOps) apenas para rodar dois métodos soltos ao dia.
+- Como temos poucas tarefas (~3 atualizações a cada 24 horas), levantar processos separados (workers) e instâncias de mensageria traria uma dor de cabeça imensa de infraestrutura (DevOps) apenas para rodar três métodos ao dia.
 - O `APScheduler` com o executor `AsyncIOScheduler` se integra perfeitamente ao Event Loop nativo do FastAPI (`uvicorn`). Quando é hora do job rodar, ele compartilha sutilmente o processador com as requisições HTTP, de forma assíncrona (IO-bound), sem bloquear a sua aplicação.

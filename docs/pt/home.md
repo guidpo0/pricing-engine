@@ -1,14 +1,16 @@
-# Engine de Precificação do Tesouro Direto
+# Engine de Precificação de Renda Fixa
 
-Um microsserviço pronto para produção que calcula os preços exatos a mercado (Preço Unitário - PU) dos títulos públicos brasileiros do programa **Tesouro Direto**.
+Um microsserviço pronto para produção que calcula os preços exatos a mercado dos principais instrumentos de renda fixa brasileiros: títulos públicos do **Tesouro Direto** e **CDB** (Certificado de Depósito Bancário).
 
-O sistema busca dados reais do mercado diariamente e usa a convenção brasileira de 252 dias úteis para precificar todos os títulos de varejo disponíveis.
+O sistema busca dados reais do mercado diariamente e usa a convenção brasileira de 252 dias úteis para precificar todos os ativos suportados.
 
 ## Fontes de Dados
 
-As fórmulas de precificação dependem de dois mercados financeiros reais:
+As fórmulas de precificação dependem de dados de mercado reais captados automaticamente:
+
 1. **Curvas de Juros (ANBIMA)**: Curvas nominais (Pré) e reais (IPCA+) buscadas diariamente. O sistema interpola linearmente as taxas para qualquer vencimento.
-2. **Índice de Inflação (Banco Central do Brasil)**: Variações mensais do IPCA (Série SGS 433) e meta SELIC (Série SGS 11) buscadas diariamente para calcular o VNA base atualizado.
+2. **Inflação e Fator Diário (Banco Central do Brasil)**: Variações mensais do IPCA (Série SGS 433) e fator diário da SELIC/CDI (Série SGS 12), usados para calcular o VNA e precificar CDBs CDI-indexados.
+3. **Meta SELIC (BCB SGS 11)**: Taxa básica de referência para os títulos Tesouro Selic.
 
 Jobs em background (APScheduler) atualizam estes dados de forma assíncrona todos os dias.
 

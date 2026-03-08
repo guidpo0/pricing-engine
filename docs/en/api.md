@@ -1,6 +1,6 @@
 # Getting Started & API Endpoints
 
-We provide a convenient `Makefile` to simplify local development.
+We provide a `Makefile` for easy local usage.
 
 ### Installation & Running
 
@@ -8,7 +8,7 @@ We provide a convenient `Makefile` to simplify local development.
    ```bash
    make run
    ```
-2. **Test the Application:**
+2. **Run tests:**
    ```bash
    make test
    ```
@@ -17,31 +17,66 @@ We provide a convenient `Makefile` to simplify local development.
 
 ## API Endpoints
 
-### `GET /bonds/price`
-Calculates the exact unit price (PU) of a specific bond.
+### Tesouro Direto (Government Bonds)
 
-**Example:** Price an IPCA+ bond maturing in 2035 with a 0.2% additional spread.
+#### `GET /bonds/price`
+Calculates the Preço Unitário (PU) for a government bond.
+
 ```bash
 curl "http://localhost:8000/bonds/price?type=IPCA&maturity_date=2035-05-15&spread=0.002"
 ```
 
-### `POST /portfolio/value`
-Takes a fractional quantity of a bond and calculates the total mark-to-market position value.
+#### `POST /portfolio/value`
+Accepts a fractional bond quantity and returns the total mark-to-market position value.
 
-**Example:**
 ```bash
 curl -X POST "http://localhost:8000/portfolio/value" \
      -H "Content-Type: application/json" \
      -d '{"bond_type":"IPCA_JUROS","maturity_date":"2040-08-15","quantity":1.5}'
 ```
 
-### `GET /docs/readme`
-Returns this HTML documentation. Use the `page` query param to navigate, or `lang` to set language.
-- `?lang=en` (default) for English
-- `?lang=pt` for Portuguese
+---
 
-### `GET /market/curves` and `GET /market/vna`
-Debug endpoints that expose the in-memory yield curves and inflation data currently being used for calculations.
+### CDB
 
-### `GET /health`
-Liveness probe. Verify if the scheduler is active and data successfully loaded.
+#### `POST /cdb/value`
+Calculates the current mark-to-model value of a CDB investment.
+
+```bash
+# CDI — 110% CDI since Jun/24
+curl -X POST "http://localhost:8000/cdb/value" \
+     -H "Content-Type: application/json" \
+     -d '{"principal":10000,"rate":1.10,"index_type":"CDI","purchase_date":"2024-06-01","maturity_date":"2027-06-01"}'
+
+# Fixed rate — 12% p.a.
+curl -X POST "http://localhost:8000/cdb/value" \
+     -H "Content-Type: application/json" \
+     -d '{"principal":10000,"rate":0.12,"index_type":"PREFIXADO","purchase_date":"2024-01-01","maturity_date":"2027-01-01"}'
+
+# IPCA + 5%
+curl -X POST "http://localhost:8000/cdb/value" \
+     -H "Content-Type: application/json" \
+     -d '{"principal":10000,"rate":0.05,"index_type":"IPCA","purchase_date":"2024-01-01","maturity_date":"2027-01-01"}'
+```
+
+---
+
+### Market Data (Debug)
+
+#### `GET /market/curves`
+Returns the Pre and IPCA+ yield curves plus SELIC rate currently loaded in memory.
+
+#### `GET /market/vna`
+Returns the current IPCA+ VNA and cached inflation series.
+
+#### `GET /health`
+Liveness probe — verifies the service is up and market data loaded successfully. Watch for `"using_fallback": true` to detect graceful degradation mode.
+
+---
+
+### Documentation
+
+#### `GET /docs/readme`
+Returns this documentation as HTML.
+- `?lang=en` — English (default) | `?lang=pt` — Portuguese
+- `?page=home|bonds|cdb|integration|architecture|jobs|api`

@@ -1,0 +1,21 @@
+meta {
+  name: CDB Value - CDI 110%
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/cdb/value
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "principal": 10000,
+    "rate": 1.10,
+    "index_type": "CDI",
+    "purchase_date": "2024-06-01",
+    "maturity_date": "2027-06-01"
+  }
+}

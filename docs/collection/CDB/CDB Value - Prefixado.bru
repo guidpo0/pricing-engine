@@ -1,0 +1,21 @@
+meta {
+  name: CDB Value - Prefixado 12%
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/cdb/value
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "principal": 10000,
+    "rate": 0.12,
+    "index_type": "PREFIXADO",
+    "purchase_date": "2024-01-01",
+    "maturity_date": "2027-01-01"
+  }
+}
