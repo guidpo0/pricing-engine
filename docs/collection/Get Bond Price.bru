@@ -1,0 +1,16 @@
+meta {
+  name: Get Bond Price
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/bonds/price?type=PREFIXADO&maturity_date=2029-01-01
+  body: none
+  auth: none
+}
+
+query {
+  type: PREFIXADO
+  maturity_date: 2029-01-01
+}

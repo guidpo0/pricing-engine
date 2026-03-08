@@ -1,0 +1,19 @@
+meta {
+  name: Calculate Portfolio Value
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/portfolio/value
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "bond_type": "IPCA",
+    "maturity_date": "2035-05-15",
+    "quantity": 0.73
+  }
+}
