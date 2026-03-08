@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+from enum import Enum
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, status
 
@@ -147,6 +149,40 @@ async def get_market_vna() -> dict:
     """Return the currently cached VNA for IPCA+ bonds."""
     return inflation_service.get_cache_info()
 
+
+# ---------------------------------------------------------------------------
+# Documentation endpoints
+# ---------------------------------------------------------------------------
+
+class DocLanguage(str, Enum):
+    EN = "en"
+    PT = "pt"
+
+@router.get(
+    "/docs/readme",
+    summary="Get project documentation (README)",
+    tags=["System"],
+)
+async def get_readme(
+    lang: DocLanguage = Query(DocLanguage.EN, description="Language of the documentation (en or pt)"),
+) -> dict:
+    """Return the raw markdown content of the project README."""
+    base_dir = Path(__file__).resolve().parent.parent.parent
+    
+    if lang == DocLanguage.PT:
+        readme_path = base_dir / "README_pt.md"
+    else:
+        readme_path = base_dir / "README.md"
+        
+    try:
+        content = readme_path.read_text(encoding="utf-8")
+        return {"language": lang.value, "content": content}
+    except FileNotFoundError:
+        logger.error("README file not found at %s", readme_path)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "NOT_FOUND", "detail": "Documentation file not found.", "code": "NOT_FOUND"},
+        )
 
 # ---------------------------------------------------------------------------
 # Health check

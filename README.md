@@ -85,6 +85,16 @@ curl -X POST "http://localhost:8000/portfolio/value" \
      -d '{"bond_type":"IPCA_JUROS","maturity_date":"2040-08-15","quantity":1.5}'
 ```
 
+### `GET /docs/readme`
+Returns this documentation content in JSON format.
+- `lang=en` (default) for English
+- `lang=pt` for Portuguese
+
+**Example:**
+```bash
+curl "http://localhost:8000/docs/readme?lang=pt"
+```
+
 ### `GET /market/curves` and `GET /market/vna`
 Debug endpoints that expose the in-memory yield curves and inflation data currently being used for calculations.
 
