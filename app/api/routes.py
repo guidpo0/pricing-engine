@@ -226,7 +226,7 @@ async def get_readme(
     page: str = Query("home", description="Page to view: home, bonds, jobs, architecture, integration, api"),
 ) -> HTMLResponse:
     """Return the raw markdown content of the project documentation rendered as HTML."""
-    if page not in ["home", "bonds", "jobs", "architecture", "integration", "api"]:
+    if page not in ["home", "bonds", "jobs", "architecture", "integration", "cdb", "api"]:
         page = "home"
         
     base_dir = Path(__file__).resolve().parent.parent.parent
@@ -249,10 +249,10 @@ async def get_readme(
         # Navigation Menu
         if lang == DocLanguage.EN:
             menu_title = "Navigation"
-            links = {"home": "Home", "bonds": "Supported Bonds", "integration": "Integration Guide", "architecture": "Architecture (ADR)", "jobs": "Background Jobs", "api": "API Endpoints"}
+            links = {"home": "Home", "bonds": "Tesouro Bonds", "cdb": "CDB", "integration": "Integration Guide", "architecture": "Architecture (ADR)", "jobs": "Background Jobs", "api": "API Endpoints"}
         else:
             menu_title = "Navegação"
-            links = {"home": "Início", "bonds": "Títulos Suportados", "integration": "Guia de Integração", "architecture": "Decisões de Arquitetura", "jobs": "Jobs e Dados", "api": "API e Endpoints"}
+            links = {"home": "Início", "bonds": "Títulos Tesouro", "cdb": "CDB", "integration": "Guia de Integração", "architecture": "Decisões de Arquitetura", "jobs": "Jobs e Dados", "api": "API e Endpoints"}
             
         nav_items_html = ""
         for p, label in links.items():
