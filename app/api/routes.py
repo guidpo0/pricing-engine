@@ -171,11 +171,12 @@ async def get_readme(
 ) -> HTMLResponse:
     """Return the raw markdown content of the project README rendered as HTML."""
     base_dir = Path(__file__).resolve().parent.parent.parent
+    docs_dir = base_dir / "docs"
     
     if lang == DocLanguage.PT:
-        readme_path = base_dir / "README_pt.md"
+        readme_path = docs_dir / "README_pt.md"
     else:
-        readme_path = base_dir / "README.md"
+        readme_path = docs_dir / "README_en.md"
         
     try:
         content = readme_path.read_text(encoding="utf-8")
