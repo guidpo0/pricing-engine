@@ -13,7 +13,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.config import settings
-from app.services import curve_service, inflation_service
+from app.services import curve_service, inflation_service, cdb_service
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +30,18 @@ async def _update_inflation_job() -> None:
     await inflation_service.refresh_inflation()
 
 
+async def _update_cdb_rates_job() -> None:
+    logger.info("[job] Updating CDI daily factors...")
+    await cdb_service.refresh_cdb_rates()
+
+
 async def run_initial_data_load() -> None:
     """Fetch market data immediately at startup (before the scheduler fires)."""
     logger.info("Running initial market data load...")
     results = await asyncio.gather(
         curve_service.refresh_curves(),
         inflation_service.refresh_inflation(),
+        cdb_service.refresh_cdb_rates(),
         return_exceptions=True,
     )
     for i, result in enumerate(results):
@@ -63,6 +69,15 @@ def start_scheduler() -> AsyncIOScheduler:
         trigger=CronTrigger(hour=settings.ipca_update_hour, minute=0, timezone="UTC"),
         id="update_inflation",
         name="Update BCB IPCA / VNA",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
+    _scheduler.add_job(
+        _update_cdb_rates_job,
+        trigger=CronTrigger(hour=settings.curve_update_hour, minute=30, timezone="UTC"),
+        id="update_cdb_rates",
+        name="Update CDI daily factors",
         replace_existing=True,
         misfire_grace_time=3600,
     )

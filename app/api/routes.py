@@ -19,8 +19,10 @@ from app.models.bond import (
     PortfolioValueRequest,
     PortfolioValueResponse,
 )
+from app.models.cdb import CDBValueRequest, CDBValueResponse
 from app.services import curve_service, inflation_service
 from app.services.pricing_engine import calculate_pu
+from app.services.cdb_pricing_engine import calculate_cdb
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +152,59 @@ async def get_market_curves() -> dict:
 async def get_market_vna() -> dict:
     """Return the currently cached VNA for IPCA+ bonds."""
     return inflation_service.get_cache_info()
+
+
+# ---------------------------------------------------------------------------
+# CDB pricing endpoint
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/cdb/value",
+    response_model=CDBValueResponse,
+    summary="Calculate current mark-to-model value of a CDB investment",
+    tags=["CDB"],
+)
+async def get_cdb_value(body: CDBValueRequest) -> CDBValueResponse:
+    """
+    Calculate the current mark-to-model value of a CDB investment.
+
+    Supports three index types:
+    - **CDI**: rate is the CDI percentage (e.g. `1.10` = 110% CDI)
+    - **PREFIXADO**: rate is the fixed annual rate (e.g. `0.12` = 12% p.a.)
+    - **IPCA**: rate is the real spread (e.g. `0.05` = IPCA + 5% p.a.)
+
+    If the CDB has already matured, the response reflects the final accrued
+    value at the maturity date.
+    """
+    try:
+        result = calculate_cdb(body)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "PRICING_ERROR", "detail": str(exc), "code": "PRICING_ERROR"},
+        ) from exc
+    except Exception as exc:
+        logger.exception(
+            "Unexpected error pricing CDB index_type=%s principal=%.2f",
+            body.index_type, body.principal,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "INTERNAL_ERROR", "detail": "Unexpected CDB pricing error.", "code": "INTERNAL_ERROR"},
+        ) from exc
+
+    return CDBValueResponse(
+        index_type=body.index_type,
+        principal=body.principal,
+        rate=body.rate,
+        purchase_date=body.purchase_date,
+        maturity_date=body.maturity_date,
+        current_value=result.current_value,
+        yield_amount=result.yield_amount,
+        yield_percentage=result.yield_percentage,
+        is_matured=result.is_matured,
+        calculation_date=result.calculation_date,
+    )
 
 
 # ---------------------------------------------------------------------------
