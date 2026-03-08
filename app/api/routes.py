@@ -9,6 +9,8 @@ from enum import Enum
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, status
+from fastapi.responses import HTMLResponse
+import markdown
 
 from app.models.bond import (
     BondPriceRequest,
@@ -160,13 +162,14 @@ class DocLanguage(str, Enum):
 
 @router.get(
     "/docs/readme",
-    summary="Get project documentation (README)",
+    summary="Get project documentation (README) as HTML",
     tags=["System"],
+    response_class=HTMLResponse,
 )
 async def get_readme(
     lang: DocLanguage = Query(DocLanguage.EN, description="Language of the documentation (en or pt)"),
-) -> dict:
-    """Return the raw markdown content of the project README."""
+) -> HTMLResponse:
+    """Return the raw markdown content of the project README rendered as HTML."""
     base_dir = Path(__file__).resolve().parent.parent.parent
     
     if lang == DocLanguage.PT:
@@ -176,7 +179,40 @@ async def get_readme(
         
     try:
         content = readme_path.read_text(encoding="utf-8")
-        return {"language": lang.value, "content": content}
+        
+        # Convert markdown to HTML
+        content_html = markdown.markdown(
+            content,
+            extensions=["fenced_code", "tables", "nl2br", "sane_lists"]
+        )
+        
+        html_template = f"""<!DOCTYPE html>
+<html lang="{lang}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tesouro Pricing API Docs</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown.min.css">
+    <style>
+        .markdown-body {{
+            box-sizing: border-box;
+            min-width: 200px;
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 45px;
+        }}
+        @media (max-width: 767px) {{
+            .markdown-body {{
+                padding: 15px;
+            }}
+        }}
+    </style>
+</head>
+<body class="markdown-body">
+{content_html}
+</body>
+</html>"""
+        return HTMLResponse(content=html_template, status_code=200)
     except FileNotFoundError:
         logger.error("README file not found at %s", readme_path)
         raise HTTPException(
