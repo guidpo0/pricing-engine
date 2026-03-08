@@ -46,7 +46,7 @@ async def _fetch_ipca_series(n_months: int = 120) -> list[dict]:
         List of {"data": "DD/MM/YYYY", "valor": float_pct} dicts.
     """
     url = (
-        f"{settings.bcb_sgs_base_url}/433/dados/ultimos/{n_months}"
+        f"{settings.bcb_sgs_base_url}.433/dados/ultimos/{n_months}"
         "?formato=json"
     )
     async with httpx.AsyncClient(timeout=settings.http_timeout) as client:

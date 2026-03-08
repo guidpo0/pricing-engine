@@ -97,7 +97,7 @@ def _linear_interpolate(curve: list[dict], tenor: float) -> float:
 
 async def _fetch_selic_rate() -> float:
     """Fetch the current SELIC target rate from BCB SGS series 11."""
-    url = f"{settings.bcb_sgs_base_url}/11/dados/ultimos/1?formato=json"
+    url = f"{settings.bcb_sgs_base_url}.11/dados/ultimos/1?formato=json"
     async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
         resp = await client.get(url)
         resp.raise_for_status()
