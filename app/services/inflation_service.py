@@ -38,9 +38,10 @@ class InflationCache:
 _cache = InflationCache()
 
 
-async def _fetch_ipca_series(n_months: int = 120) -> list[dict]:
+async def _fetch_ipca_series(n_months: int = 20) -> list[dict]:
     """
     Fetch the last *n_months* IPCA monthly variations from BCB SGS 433.
+    Note: BCB SGS API limits 'ultimos' queries to a maximum of 20 items.
 
     Returns:
         List of {"data": "DD/MM/YYYY", "valor": float_pct} dicts.
@@ -86,7 +87,7 @@ async def refresh_inflation() -> None:
     global _cache  # noqa: PLW0603
     logger.info("Refreshing IPCA data and VNA...")
     try:
-        series = await _fetch_ipca_series(n_months=120)
+        series = await _fetch_ipca_series(n_months=20)
         vna = _compute_vna(series)
         _cache = InflationCache(
             vna=vna,
