@@ -191,8 +191,9 @@ async def get_readme(
         other_lang_label = "Ver em Português 🇧🇷" if lang == DocLanguage.EN else "View in English 🇺🇸"
         
         lang_nav_html = f'''
-        <div style="text-align: right; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <a href="?lang={other_lang}">{other_lang_label}</a>
+            <button id="theme-toggle" style="cursor: pointer; background: none; border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 4px; color: var(--text-color);">🌓</button>
         </div>
         '''
         
@@ -204,17 +205,34 @@ async def get_readme(
     <title>Tesouro Pricing API Docs</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown.min.css">
     <style>
+        :root {{
+            --bg-body: #ffffff;
+            --bg-sidebar: #f6f8fa;
+            --border-color: #d0d7de;
+            --text-color: #24292f;
+            --link-color: #0969da;
+        }}
+        [data-theme="dark"] {{
+            /* GitHub dark mode colors approximating their palette */
+            --bg-body: #0d1117;
+            --bg-sidebar: #161b22;
+            --border-color: #30363d;
+            --text-color: #c9d1d9;
+            --link-color: #58a6ff;
+        }}
         body {{
             margin: 0;
             padding: 0;
             font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
             display: flex;
             height: 100vh;
+            background-color: var(--bg-body);
+            color: var(--text-color);
         }}
         .sidebar {{
             width: 300px;
-            background-color: #f6f8fa;
-            border-right: 1px solid #d0d7de;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
             overflow-y: auto;
             padding: 20px;
             box-sizing: border-box;
@@ -227,7 +245,7 @@ async def get_readme(
             padding-left: 0;
         }}
         .sidebar a {{
-            color: #0969da;
+            color: var(--link-color);
             text-decoration: none;
             font-size: 14px;
             display: block;
@@ -240,7 +258,7 @@ async def get_readme(
             flex: 1;
             overflow-y: auto;
             padding: 45px;
-            background-color: #ffffff;
+            background-color: var(--bg-body);
         }}
         .markdown-body {{
             box-sizing: border-box;
@@ -255,7 +273,7 @@ async def get_readme(
                 width: 100%;
                 height: 30vh;
                 border-right: none;
-                border-bottom: 1px solid #d0d7de;
+                border-bottom: 1px solid var(--border-color);
             }}
             .content-wrapper {{
                 height: 70vh;
@@ -271,10 +289,47 @@ async def get_readme(
         {toc_html}
     </div>
     <div class="content-wrapper">
-        <div class="markdown-body">
+        <div class="markdown-body" id="md-body">
             {content_html}
         </div>
     </div>
+    <script>
+        const htmlEl = document.documentElement;
+        const mdBody = document.getElementById('md-body');
+        const themeToggle = document.getElementById('theme-toggle');
+        
+        // Load preference
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {{
+            setDark();
+        }} else if (savedTheme === 'light') {{
+            setLight();
+        }} else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {{
+            setDark();
+        }} else {{
+            setLight();
+        }}
+        
+        function setDark() {{
+            htmlEl.setAttribute('data-theme', 'dark');
+            htmlEl.setAttribute('data-color-mode', 'dark'); // For github-markdown-css
+            localStorage.setItem('theme', 'dark');
+        }}
+        
+        function setLight() {{
+            htmlEl.setAttribute('data-theme', 'light');
+            htmlEl.setAttribute('data-color-mode', 'light'); // For github-markdown-css
+            localStorage.setItem('theme', 'light');
+        }}
+        
+        themeToggle.addEventListener('click', () => {{
+            if (htmlEl.getAttribute('data-theme') === 'dark') {{
+                setLight();
+            }} else {{
+                setDark();
+            }}
+        }});
+    </script>
 </body>
 </html>"""
         return HTMLResponse(content=html_template, status_code=200)
