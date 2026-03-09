@@ -22,10 +22,9 @@ logger = logging.getLogger(__name__)
 # (1.1325)^(1/252) - 1 ≈ 0.049704% per business day
 _FALLBACK_CDI_DAILY_FACTOR: float = 0.049704 / 100.0
 
-# Max days of CDI history to cache. BCB SGS 12 /ultimos/ endpoint has no small
-# limit. We fetch ~5 years (1260 business days) to cover the vast majority of
-# open retail CDBs without needing the fallback calculation.
-_CDI_FETCH_DAYS = 1260
+# Max days of CDI history to cache. We fetch 5 calendar years
+# to cover the vast majority of open retail CDBs without needing the fallback calculation.
+_CDI_FETCH_DAYS = 1825
 
 
 @dataclass
@@ -44,7 +43,12 @@ async def refresh_cdb_rates() -> None:
     global _cache  # noqa: PLW0603
     logger.info("Refreshing CDI daily factors...")
     try:
-        url = f"{settings.bcb_sgs_base_url}.12/dados/ultimos/{_CDI_FETCH_DAYS}?formato=json"
+        from datetime import date, timedelta
+        today = date.today()
+        start = today - timedelta(days=_CDI_FETCH_DAYS)
+        start_str = start.strftime("%d/%m/%Y")
+        end_str = today.strftime("%d/%m/%Y")
+        url = f"{settings.bcb_sgs_base_url}.12/dados?dataInicial={start_str}&dataFinal={end_str}&formato=json"
         async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
             resp = await client.get(url)
             resp.raise_for_status()

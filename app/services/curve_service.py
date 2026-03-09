@@ -137,6 +137,9 @@ async def _fetch_lft_vna() -> float:
     )
     async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
         resp = await client.get(url)
+        if resp.status_code == 404:
+            # 404 from BCB SGS means no data in this date range (e.g., weekends/holidays)
+            return settings.lft_vna_anchor
         resp.raise_for_status()
         data = resp.json()
 
