@@ -1,6 +1,6 @@
 # Fixed Income Pricing Engine
 
-A production-ready microservice that calculates exact mark-to-market prices for the main Brazilian fixed income instruments: **Tesouro Direto** government bonds and **CDB** (Certificado de Depósito Bancário).
+A production-ready microservice that calculates exact mark-to-market prices for the main Brazilian fixed income instruments: **Tesouro Direto** government bonds, **CDB** (Certificado de Depósito Bancário), and **LCI / LCA** (Letra de Crédito Imobiliário / do Agronegócio).
 
 The system fetches real market data daily and uses the Brazilian 252 business-day convention for all pricing calculations.
 

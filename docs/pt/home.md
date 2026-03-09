@@ -1,6 +1,6 @@
 # Engine de Precificação de Renda Fixa
 
-Um microsserviço pronto para produção que calcula os preços exatos a mercado dos principais instrumentos de renda fixa brasileiros: títulos públicos do **Tesouro Direto** e **CDB** (Certificado de Depósito Bancário).
+Um microsserviço pronto para produção que calcula os preços exatos a mercado dos principais instrumentos de renda fixa brasileiros: títulos públicos do **Tesouro Direto**, **CDB** (Certificado de Depósito Bancário), e **LCI / LCA**.
 
 O sistema busca dados reais do mercado diariamente e usa a convenção brasileira de 252 dias úteis para precificar todos os ativos suportados.
 

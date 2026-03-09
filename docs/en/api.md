@@ -61,6 +61,20 @@ curl -X POST "http://localhost:8000/cdb/value" \
 
 ---
 
+### LCI / LCA
+
+#### `POST /lci-lca/value`
+Calculates the current mark-to-model value of an LCI or LCA investment.
+
+```bash
+# CDI — 95% CDI
+curl -X POST "http://localhost:8000/lci-lca/value" \
+     -H "Content-Type: application/json" \
+     -d '{"instrument_type":"LCI","principal":15000,"rate":0.95,"index_type":"CDI","purchase_date":"2024-05-01","maturity_date":"2026-05-01","grace_period_days":90}'
+```
+
+---
+
 ### Market Data (Debug)
 
 #### `GET /market/curves`
@@ -79,4 +93,4 @@ Liveness probe — verifies the service is up and market data loaded successfull
 #### `GET /docs/readme`
 Returns this documentation as HTML.
 - `?lang=en` — English (default) | `?lang=pt` — Portuguese
-- `?page=home|bonds|cdb|integration|architecture|jobs|api`
+- `?page=home|bonds|cdb|lci_lca|integration|architecture|jobs|api`

@@ -1,0 +1,23 @@
+meta {
+  name: LCI Value - IPCA
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/lci-lca/value
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "instrument_type": "LCI",
+    "principal": 12000,
+    "rate": 0.05,
+    "index_type": "IPCA",
+    "purchase_date": "2023-08-01",
+    "maturity_date": "2028-08-01",
+    "grace_period_days": 180
+  }
+}

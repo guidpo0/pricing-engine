@@ -23,6 +23,8 @@ from app.models.cdb import CDBValueRequest, CDBValueResponse
 from app.services import curve_service, inflation_service
 from app.services.pricing_engine import calculate_pu
 from app.services.cdb_pricing_engine import calculate_cdb
+from app.models.lci_lca import LCILCAValueRequest, LCILCAValueResponse
+from app.services.lci_lca_pricing_engine import calculate_lci_lca
 
 logger = logging.getLogger(__name__)
 
@@ -193,6 +195,47 @@ async def get_cdb_value(body: CDBValueRequest) -> CDBValueResponse:
 
 
 # ---------------------------------------------------------------------------
+# LCI/LCA pricing endpoint
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/lci-lca/value",
+    response_model=LCILCAValueResponse,
+    summary="Calculate current mark-to-model value of an LCI or LCA investment",
+    tags=["LCI/LCA"],
+)
+async def get_lci_lca_value(body: LCILCAValueRequest) -> LCILCAValueResponse:
+    """
+    Calculate the current mark-to-model value of an LCI or LCA investment.
+
+    Supports three index types:
+    - **CDI**: rate is the CDI percentage (e.g. `0.95` = 95% CDI)
+    - **PREFIXADO**: rate is the fixed annual rate (e.g. `0.10` = 10% p.a.)
+    - **IPCA**: rate is the real spread (e.g. `0.05` = IPCA + 5% p.a.)
+
+    LCI and LCA are tax-exempt (IR = 0%).
+    The response checks if `grace_period_days` (carência) has passed, setting `redeemable` to true/false.
+    """
+    try:
+        result = calculate_lci_lca(body)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "PRICING_ERROR", "detail": str(exc), "code": "PRICING_ERROR"},
+        ) from exc
+    except Exception as exc:
+        logger.exception(
+            "Unexpected error pricing %s index_type=%s principal=%.2f",
+            body.instrument_type, body.index_type, body.principal,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "INTERNAL_ERROR", "detail": f"Unexpected {body.instrument_type} pricing error.", "code": "INTERNAL_ERROR"},
+        ) from exc
+
+    return result
+
+# ---------------------------------------------------------------------------
 # Documentation endpoints
 # ---------------------------------------------------------------------------
 
@@ -211,7 +254,7 @@ async def get_readme(
     page: str = Query("home", description="Page to view: home, bonds, jobs, architecture, integration, api"),
 ) -> HTMLResponse:
     """Return the raw markdown content of the project documentation rendered as HTML."""
-    if page not in ["home", "bonds", "jobs", "architecture", "integration", "cdb", "api"]:
+    if page not in ["home", "bonds", "jobs", "architecture", "integration", "cdb", "lci_lca", "api"]:
         page = "home"
         
     base_dir = Path(__file__).resolve().parent.parent.parent
@@ -234,10 +277,10 @@ async def get_readme(
         # Navigation Menu
         if lang == DocLanguage.EN:
             menu_title = "Navigation"
-            links = {"home": "Home", "bonds": "Tesouro Bonds", "cdb": "CDB", "integration": "Integration Guide", "architecture": "Architecture (ADR)", "jobs": "Background Jobs", "api": "API Endpoints"}
+            links = {"home": "Home", "bonds": "Tesouro Bonds", "cdb": "CDB", "lci_lca": "LCI & LCA", "integration": "Integration Guide", "architecture": "Architecture (ADR)", "jobs": "Background Jobs", "api": "API Endpoints"}
         else:
             menu_title = "Navegação"
-            links = {"home": "Início", "bonds": "Títulos Tesouro", "cdb": "CDB", "integration": "Guia de Integração", "architecture": "Decisões de Arquitetura", "jobs": "Jobs e Dados", "api": "API e Endpoints"}
+            links = {"home": "Início", "bonds": "Títulos Tesouro", "cdb": "CDB", "lci_lca": "LCI & LCA", "integration": "Guia de Integração", "architecture": "Decisões de Arquitetura", "jobs": "Jobs e Dados", "api": "API e Endpoints"}
             
         nav_items_html = ""
         for p, label in links.items():
