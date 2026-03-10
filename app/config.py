@@ -15,6 +15,8 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     log_level: str = "INFO"
+    api_auth_token: str = ""
+
 
     # Scheduled job hours (24h UTC)
     curve_update_hour: int = 8
