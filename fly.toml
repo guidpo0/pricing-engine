@@ -1,31 +1,41 @@
-app = "pricing-engine"
-primary_region = "gru"
-kill_signal = "SIGINT"
-kill_timeout = "5s"
+# fly.toml app configuration file generated for pricing-engine-finances on 2026-03-10T20:16:48-03:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'pricing-engine-finances'
+primary_region = 'gru'
+kill_signal = 'SIGINT'
+kill_timeout = '5s'
 
 [experimental]
   auto_rollback = true
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  APP_ENV = "production"
-  LOG_LEVEL = "INFO"
-  JOB_MARKET_TIMEZONE = "America/Sao_Paulo"
-  JOB_MARKET_HOURS = "7-19/4"
-  JOB_MARKET_DAYS = "mon-fri"
-  JOB_CRYPTO_HOURS = "*/4"
-  JOB_CRYPTO_DAYS = "*"
+  APP_ENV = 'production'
+  JOB_CRYPTO_DAYS = '*'
+  JOB_CRYPTO_HOURS = '*/4'
+  JOB_MARKET_DAYS = 'mon-fri'
+  JOB_MARKET_HOURS = '7-19/4'
+  JOB_MARKET_TIMEZONE = 'America/Sao_Paulo'
+  LOG_LEVEL = 'INFO'
 
-[mounts]
-  source = "pricing_data"
-  destination = "/app/data"
+[[mounts]]
+  source = 'pricing_data'
+  destination = '/app/data'
 
 [http_service]
   internal_port = 8000
   force_https = true
-  auto_stop_machines = false
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
-  processes = ["app"]
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpus = 1
+  memory_mb = 1024
