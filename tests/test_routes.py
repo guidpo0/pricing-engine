@@ -200,6 +200,21 @@ class TestMarketEndpoints:
         assert "vna" in data
         assert data["vna"] > 0
 
+    def test_market_tickers_endpoint(self, client):
+        with patch("app.api.routes.get_all_tickers", return_value=["PETR4"]), \
+             patch("app.api.routes.get_all_tickers_us", return_value=["AAPL"]), \
+             patch("app.api.routes.get_all_crypto_slugs", return_value=["bitcoin"]), \
+             patch("app.api.routes.get_all_currency_pairs", return_value=["USD-BRL"]):
+            
+            response = client.get("/market/tickers")
+            
+        assert response.status_code == 200
+        data = response.json()
+        assert data["br_tickers"] == ["PETR4"]
+        assert data["us_tickers"] == ["AAPL"]
+        assert data["crypto_slugs"] == ["bitcoin"]
+        assert data["currencies"] == ["USD-BRL"]
+
     def test_market_quote_success(self, client):
         with patch("app.api.routes.market_service.get_market_quote", new_callable=AsyncMock) as mock_get:
             from datetime import datetime, timezone

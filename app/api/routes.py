@@ -26,8 +26,13 @@ from app.services.cdb_pricing_engine import calculate_cdb
 from app.models.lci_lca import LCILCAValueRequest, LCILCAValueResponse
 from app.services.lci_lca_pricing_engine import calculate_lci_lca
 from app.models.market import MarketQuoteResponse, TrackedTickersResponse
-from app.services import market_service
-from app.utils.database import get_all_tickers
+from app.services import (
+    market_service, us_market_service, crypto_market_service, currency_service
+)
+from app.utils.database import (
+    get_all_tickers, get_all_tickers_us,
+    get_all_crypto_slugs, get_all_currency_pairs
+)
 
 logger = logging.getLogger(__name__)
 
@@ -152,8 +157,16 @@ async def get_market_vna() -> dict:
 )
 async def get_tracked_tickers() -> TrackedTickersResponse:
     """Return the list of all tickers registered in the background fetching database."""
-    tickers = get_all_tickers()
-    return TrackedTickersResponse(tickers=tickers)
+    br_tickers = get_all_tickers()
+    us_tickers = get_all_tickers_us()
+    crypto_slugs = get_all_crypto_slugs()
+    currencies = get_all_currency_pairs()
+    return TrackedTickersResponse(
+        br_tickers=br_tickers,
+        us_tickers=us_tickers,
+        crypto_slugs=crypto_slugs,
+        currencies=currencies,
+    )
 
 
 @router.get(
@@ -196,6 +209,114 @@ async def get_market_quote(
 
     return response
 
+@router.get(
+    "/market/quote/us/{ticker}",
+    response_model=MarketQuoteResponse,
+    summary="Get real-time market quote for a US ticker",
+    tags=["Market Data"],
+)
+async def get_us_market_quote(
+    ticker: str,
+    quantity: float | None = Query(None, description="Optional quantity for portfolio valuation")
+) -> MarketQuoteResponse:
+    try:
+        quote_data = await us_market_service.get_us_market_quote(ticker)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
+            detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
+        ) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error fetching US market quote for %s", ticker)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+        ) from exc
+
+    response = MarketQuoteResponse(
+        ticker=ticker.upper(),
+        unit_price=quote_data["price"],
+        updated_at=quote_data["updated_at"],
+    )
+
+    if quantity is not None:
+        response.quantity = quantity
+        response.position_value = round(quote_data["price"] * quantity, 2)
+
+    return response
+
+@router.get(
+    "/market/quote/crypto/{slug}",
+    response_model=MarketQuoteResponse,
+    summary="Get market quote for a cryptocurrency",
+    tags=["Market Data"],
+)
+async def get_crypto_quote(
+    slug: str,
+    quantity: float | None = Query(None, description="Optional quantity for portfolio valuation")
+) -> MarketQuoteResponse:
+    try:
+        quote_data = await crypto_market_service.get_crypto_quote(slug)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
+            detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
+        ) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error fetching crypto quote for %s", slug)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+        ) from exc
+
+    response = MarketQuoteResponse(
+        ticker=slug.upper(),
+        unit_price=quote_data["price"],
+        updated_at=quote_data["updated_at"],
+    )
+
+    if quantity is not None:
+        response.quantity = quantity
+        response.position_value = round(quote_data["price"] * quantity, 6)
+
+    return response
+
+@router.get(
+    "/market/currency/{from_currency}/{to_currency}",
+    response_model=MarketQuoteResponse,
+    summary="Get market conversion rate between two currencies",
+    tags=["Market Data"],
+)
+async def get_currency_quote(
+    from_currency: str,
+    to_currency: str,
+    quantity: float | None = Query(None, description="Optional quantity to convert")
+) -> MarketQuoteResponse:
+    try:
+        quote_data = await currency_service.get_currency_quote(from_currency, to_currency)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
+            detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
+        ) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error fetching currency quote for %s-%s", from_currency, to_currency)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+        ) from exc
+
+    response = MarketQuoteResponse(
+        ticker=f"{from_currency.upper()}-{to_currency.upper()}",
+        unit_price=quote_data["price"],
+        updated_at=quote_data["updated_at"],
+    )
+
+    if quantity is not None:
+        response.quantity = quantity
+        response.position_value = round(quote_data["price"] * quantity, 6)
+
+    return response
 
 # ---------------------------------------------------------------------------
 # CDB pricing endpoint

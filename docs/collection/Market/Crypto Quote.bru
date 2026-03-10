@@ -1,0 +1,15 @@
+meta {
+  name: Crypto Quote
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{base_url}}/market/quote/crypto/bitcoin?quantity=0.5
+  body: none
+  auth: none
+}
+
+query {
+  quantity: 0.5
+}

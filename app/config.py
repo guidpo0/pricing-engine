@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     bcb_sgs_base_url: str = "https://api.bcb.gov.br/dados/serie/bcdata.sgs"
     brapi_base_url: str = "https://brapi.dev/api"
     brapi_token: str = ""
+    twelve_data_base_url: str = "https://api.twelvedata.com"
+    twelve_data_api_token: str = ""
+    coin_market_base_url: str = "https://pro-api.coinmarketcap.com"
+    coin_market_api_token: str = ""
+    awesome_api_base_url: str = "https://economia.awesomeapi.com.br"
     http_timeout: int = 30
 
     # LFT (Tesouro Selic) VNA anchor

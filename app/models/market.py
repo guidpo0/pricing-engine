@@ -11,5 +11,8 @@ class MarketQuoteResponse(BaseModel):
     position_value: Optional[float] = Field(default=None, description="Total position value (unit_price * quantity)")
 
 class TrackedTickersResponse(BaseModel):
-    tickers: list[str] = Field(..., description="List of all tickers currently tracked in the background database")
+    br_tickers: list[str] = Field(default_factory=list, description="List of all BRAPI tickers currently tracked")
+    us_tickers: list[str] = Field(default_factory=list, description="List of all US tickers currently tracked")
+    crypto_slugs: list[str] = Field(default_factory=list, description="List of all Crypto slugs currently tracked")
+    currencies: list[str] = Field(default_factory=list, description="List of all Currency pairs currently tracked")
 

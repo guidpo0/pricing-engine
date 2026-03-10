@@ -84,13 +84,34 @@ Retorna as curvas de juros (Pré e IPCA+) e a taxa SELIC carregadas na memória.
 Retorna o VNA atual do IPCA+ e a série de inflação em cache.
 
 #### `GET /market/tickers`
-Retorna a lista de todos os tickers sendo ativamente rastreados e atualizados em background no banco de dados SQLite.
+Retorna a lista de todos os ativos (`br_tickers`, `us_tickers`, `crypto_slugs` e `currencies`) sendo ativamente rastreados e atualizados em background no banco de dados SQLite.
 
 #### `GET /market/quote/{ticker}`
 Retorna a cotação em tempo real de uma Ação ou FII via BRAPI, com cache para evitar rate limits. Suporta o parâmetro opcional `quantity` para calcular o valor da posição.
 
 ```bash
-curl "http://localhost:8000/api/v1/market/quote/PETR4?quantity=100"
+curl "http://localhost:8000/market/quote/PETR4?quantity=100"
+```
+
+#### `GET /market/quote/us/{ticker}`
+Retorna a cotação em tempo real de uma Ação Americana ou ETF via TwelveData. Rate limit tratado com cache fallback.
+
+```bash
+curl "http://localhost:8000/market/quote/us/AAPL"
+```
+
+#### `GET /market/quote/crypto/{slug}`
+Retorna a cotação de uma criptomoeda via CoinMarketCap usando o seu identificador (slug).
+
+```bash
+curl "http://localhost:8000/market/quote/crypto/bitcoin?quantity=0.5"
+```
+
+#### `GET /market/currency/{from_currency}/{to_currency}`
+Retorna a taxa de conversão atual entre duas moedas via AwesomeAPI.
+
+```bash
+curl "http://localhost:8000/market/currency/USD/BRL"
 ```
 
 #### `GET /health`

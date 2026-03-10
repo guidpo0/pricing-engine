@@ -84,13 +84,34 @@ Returns the Pre and IPCA+ yield curves plus SELIC rate currently loaded in memor
 Returns the current IPCA+ VNA and cached inflation series.
 
 #### `GET /market/tickers`
-Returns the list of all tickers currently tracked in the background SQLite database.
+Returns the list of all tracked assets (`br_tickers`, `us_tickers`, `crypto_slugs`, and `currencies`) currently active in the background SQLite database.
 
 #### `GET /market/quote/{ticker}`
 Returns the real-time quote for a Stock or FII via BRAPI, cached to avoid rate limits. Supports the optional `quantity` parameter to calculate the position value.
 
 ```bash
-curl "http://localhost:8000/api/v1/market/quote/PETR4?quantity=100"
+curl "http://localhost:8000/market/quote/PETR4?quantity=100"
+```
+
+#### `GET /market/quote/us/{ticker}`
+Returns the real-time quote for a US Stock or ETF via TwelveData. Features rate limit handling with cache fallback.
+
+```bash
+curl "http://localhost:8000/market/quote/us/AAPL"
+```
+
+#### `GET /market/quote/crypto/{slug}`
+Returns the quote for a cryptocurrency via CoinMarketCap using its slug.
+
+```bash
+curl "http://localhost:8000/market/quote/crypto/bitcoin?quantity=0.5"
+```
+
+#### `GET /market/currency/{from_currency}/{to_currency}`
+Returns the current conversion rate between two currencies via AwesomeAPI.
+
+```bash
+curl "http://localhost:8000/market/currency/USD/BRL"
 ```
 
 #### `GET /health`
