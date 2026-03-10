@@ -13,7 +13,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.config import settings
-from app.services import curve_service, inflation_service, cdb_service
+from app.services import curve_service, inflation_service, cdb_service, market_service
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,11 @@ async def _update_cdb_rates_job() -> None:
     await cdb_service.refresh_cdb_rates()
 
 
+async def _refresh_tickers_job() -> None:
+    logger.info("[job] Refreshing background tracked tickers...")
+    await market_service.refresh_all_tracked_tickers()
+
+
 async def run_initial_data_load() -> None:
     """Fetch market data immediately at startup (before the scheduler fires)."""
     logger.info("Running initial market data load...")
@@ -42,6 +47,7 @@ async def run_initial_data_load() -> None:
         curve_service.refresh_curves(),
         inflation_service.refresh_inflation(),
         cdb_service.refresh_cdb_rates(),
+        market_service.refresh_all_tracked_tickers(),
         return_exceptions=True,
     )
     for i, result in enumerate(results):
@@ -82,9 +88,18 @@ def start_scheduler() -> AsyncIOScheduler:
         misfire_grace_time=3600,
     )
 
+    _scheduler.add_job(
+        _refresh_tickers_job,
+        trigger="interval",
+        minutes=15,
+        id="refresh_tickers",
+        name="Refresh tracked tickers",
+        replace_existing=True,
+    )
+
     _scheduler.start()
     logger.info(
-        "Scheduler started. Curves at %sh UTC, IPCA at %sh UTC.",
+        "Scheduler started. Curves at %sh UTC, IPCA at %sh UTC, Tickers every 15min.",
         settings.curve_update_hour,
         settings.ipca_update_hour,
     )

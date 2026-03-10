@@ -25,8 +25,9 @@ from app.services.pricing_engine import calculate_pu
 from app.services.cdb_pricing_engine import calculate_cdb
 from app.models.lci_lca import LCILCAValueRequest, LCILCAValueResponse
 from app.services.lci_lca_pricing_engine import calculate_lci_lca
-from app.models.market import MarketQuoteResponse
+from app.models.market import MarketQuoteResponse, TrackedTickersResponse
 from app.services import market_service
+from app.utils.database import get_all_tickers
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,18 @@ async def get_market_curves() -> dict:
 async def get_market_vna() -> dict:
     """Return the currently cached VNA for IPCA+ bonds."""
     return inflation_service.get_cache_info()
+
+
+@router.get(
+    "/market/tickers",
+    response_model=TrackedTickersResponse,
+    summary="Get all market tickers being tracked in the background",
+    tags=["Market Data"],
+)
+async def get_tracked_tickers() -> TrackedTickersResponse:
+    """Return the list of all tickers registered in the background fetching database."""
+    tickers = get_all_tickers()
+    return TrackedTickersResponse(tickers=tickers)
 
 
 @router.get(

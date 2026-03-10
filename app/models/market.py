@@ -9,3 +9,7 @@ class MarketQuoteResponse(BaseModel):
     updated_at: datetime = Field(..., description="Timestamp of the quote data")
     quantity: Optional[float] = Field(default=None, description="Quantity if portfolio valuation was requested")
     position_value: Optional[float] = Field(default=None, description="Total position value (unit_price * quantity)")
+
+class TrackedTickersResponse(BaseModel):
+    tickers: list[str] = Field(..., description="List of all tickers currently tracked in the background database")
+

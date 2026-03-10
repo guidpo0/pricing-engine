@@ -17,7 +17,8 @@ async def test_get_market_quote_success():
     }
 
     with patch("httpx.AsyncClient.get", return_value=mock_response):
-        result = await get_market_quote("PETR4")
+        with patch("app.services.market_service.add_ticker"):
+            result = await get_market_quote("PETR4")
         
     assert result["price"] == 38.50
     assert "updated_at" in result
@@ -28,8 +29,9 @@ async def test_get_market_quote_from_cache():
     _set_in_cache("PETR4", 38.50)
     
     with patch("httpx.AsyncClient.get") as mock_get:
-        result = await get_market_quote("PETR4")
-        mock_get.assert_not_called()
+        with patch("app.services.market_service.add_ticker"):
+            result = await get_market_quote("PETR4")
+            mock_get.assert_not_called()
         
     assert result["price"] == 38.50
 
@@ -39,8 +41,9 @@ async def test_get_market_quote_not_found():
     mock_response.status_code = 404
     
     with patch("httpx.AsyncClient.get", return_value=mock_response):
-        with pytest.raises(ValueError, match="not found"):
-            await get_market_quote("INVALID")
+        with patch("app.services.market_service.add_ticker"):
+            with pytest.raises(ValueError, match="not found"):
+                await get_market_quote("INVALID")
 
 @pytest.mark.asyncio
 async def test_get_market_quote_retry_success(monkeypatch):
@@ -57,6 +60,7 @@ async def test_get_market_quote_retry_success(monkeypatch):
     responses[1].json.return_value = {"results": [{"regularMarketPrice": 38.50}]}
     
     with patch("httpx.AsyncClient.get", side_effect=responses):
-        result = await get_market_quote("PETR4")
+        with patch("app.services.market_service.add_ticker"):
+            result = await get_market_quote("PETR4")
         
     assert result["price"] == 38.50

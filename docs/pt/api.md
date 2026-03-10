@@ -83,6 +83,9 @@ Retorna as curvas de juros (Pré e IPCA+) e a taxa SELIC carregadas na memória.
 #### `GET /market/vna`
 Retorna o VNA atual do IPCA+ e a série de inflação em cache.
 
+#### `GET /market/tickers`
+Retorna a lista de todos os tickers sendo ativamente rastreados e atualizados em background no banco de dados SQLite.
+
 #### `GET /market/quote/{ticker}`
 Retorna a cotação em tempo real de uma Ação ou FII via BRAPI, com cache para evitar rate limits. Suporta o parâmetro opcional `quantity` para calcular o valor da posição.
 

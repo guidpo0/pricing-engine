@@ -83,6 +83,9 @@ Returns the Pre and IPCA+ yield curves plus SELIC rate currently loaded in memor
 #### `GET /market/vna`
 Returns the current IPCA+ VNA and cached inflation series.
 
+#### `GET /market/tickers`
+Returns the list of all tickers currently tracked in the background SQLite database.
+
 #### `GET /market/quote/{ticker}`
 Returns the real-time quote for a Stock or FII via BRAPI, cached to avoid rate limits. Supports the optional `quantity` parameter to calculate the position value.
 
