@@ -142,8 +142,11 @@ def start_scheduler() -> AsyncIOScheduler:
 
     _scheduler.add_job(
         _refresh_tickers_job,
-        trigger="interval",
-        minutes=15,
+        trigger=CronTrigger(
+            hour=settings.job_market_hours,
+            day_of_week=settings.job_market_days,
+            timezone=settings.job_market_timezone
+        ),
         id="refresh_tickers",
         name="Refresh tracked tickers",
         replace_existing=True,
@@ -151,8 +154,11 @@ def start_scheduler() -> AsyncIOScheduler:
     
     _scheduler.add_job(
         _refresh_us_tickers_job,
-        trigger="interval",
-        minutes=20,
+        trigger=CronTrigger(
+            hour=settings.job_market_hours,
+            day_of_week=settings.job_market_days,
+            timezone=settings.job_market_timezone
+        ),
         id="refresh_us_tickers",
         name="Refresh tracked US tickers",
         replace_existing=True,
@@ -160,8 +166,11 @@ def start_scheduler() -> AsyncIOScheduler:
 
     _scheduler.add_job(
         _refresh_crypto_job,
-        trigger="interval",
-        minutes=20,
+        trigger=CronTrigger(
+            hour=settings.job_crypto_hours,
+            day_of_week=settings.job_crypto_days,
+            timezone=settings.job_market_timezone
+        ),
         id="refresh_crypto",
         name="Refresh tracked Crypto slugs",
         replace_existing=True,
@@ -169,8 +178,11 @@ def start_scheduler() -> AsyncIOScheduler:
 
     _scheduler.add_job(
         _refresh_currency_job,
-        trigger="interval",
-        minutes=15,
+        trigger=CronTrigger(
+            hour=settings.job_market_hours,
+            day_of_week=settings.job_market_days,
+            timezone=settings.job_market_timezone
+        ),
         id="refresh_currency",
         name="Refresh tracked Currency pairs",
         replace_existing=True,
@@ -178,9 +190,13 @@ def start_scheduler() -> AsyncIOScheduler:
 
     _scheduler.start()
     logger.info(
-        "Scheduler started. Curves at %sh UTC, IPCA at %sh UTC, Tickers every 15min.",
+        "Scheduler started. Curves at %sh UTC, IPCA at %sh UTC. "
+        "Dynamic quotes market: %s days, %s hours (%s timezone).",
         settings.curve_update_hour,
         settings.ipca_update_hour,
+        settings.job_market_days,
+        settings.job_market_hours,
+        settings.job_market_timezone,
     )
     return _scheduler
 

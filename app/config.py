@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     curve_update_hour: int = 8
     ipca_update_hour: int = 9
 
+    # Dynamic Quotes Scheduled jobs (timezone aware)
+    job_market_timezone: str = "America/Sao_Paulo"
+    job_market_hours: str = "7-19/4"
+    job_market_days: str = "mon-fri"
+    job_crypto_hours: str = "*/4"
+    job_crypto_days: str = "*"
+
+
     # External APIs
     bcb_sgs_base_url: str = "https://api.bcb.gov.br/dados/serie/bcdata.sgs"
     brapi_base_url: str = "https://brapi.dev/api"
