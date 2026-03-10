@@ -83,6 +83,13 @@ Retorna as curvas de juros (Pré e IPCA+) e a taxa SELIC carregadas na memória.
 #### `GET /market/vna`
 Retorna o VNA atual do IPCA+ e a série de inflação em cache.
 
+#### `GET /market/quote/{ticker}`
+Retorna a cotação em tempo real de uma Ação ou FII via BRAPI, com cache para evitar rate limits. Suporta o parâmetro opcional `quantity` para calcular o valor da posição.
+
+```bash
+curl "http://localhost:8000/api/v1/market/quote/PETR4?quantity=100"
+```
+
 #### `GET /health`
 Liveness probe — verifica se o serviço está ativo e se os dados de mercado foram carregados com sucesso. Observe `"using_fallback": true` para detectar modo de degradação.
 

@@ -22,6 +22,8 @@ class Settings(BaseSettings):
 
     # External APIs
     bcb_sgs_base_url: str = "https://api.bcb.gov.br/dados/serie/bcdata.sgs"
+    brapi_base_url: str = "https://brapi.dev/api"
+    brapi_token: str = ""
     http_timeout: int = 30
 
     # LFT (Tesouro Selic) VNA anchor

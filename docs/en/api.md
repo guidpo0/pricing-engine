@@ -83,6 +83,13 @@ Returns the Pre and IPCA+ yield curves plus SELIC rate currently loaded in memor
 #### `GET /market/vna`
 Returns the current IPCA+ VNA and cached inflation series.
 
+#### `GET /market/quote/{ticker}`
+Returns the real-time quote for a Stock or FII via BRAPI, cached to avoid rate limits. Supports the optional `quantity` parameter to calculate the position value.
+
+```bash
+curl "http://localhost:8000/api/v1/market/quote/PETR4?quantity=100"
+```
+
 #### `GET /health`
 Liveness probe — verifies the service is up and market data loaded successfully. Watch for `"using_fallback": true` to detect graceful degradation mode.
 

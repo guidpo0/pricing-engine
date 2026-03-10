@@ -25,6 +25,8 @@ from app.services.pricing_engine import calculate_pu
 from app.services.cdb_pricing_engine import calculate_cdb
 from app.models.lci_lca import LCILCAValueRequest, LCILCAValueResponse
 from app.services.lci_lca_pricing_engine import calculate_lci_lca
+from app.models.market import MarketQuoteResponse
+from app.services import market_service
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +141,47 @@ async def get_market_curves() -> dict:
 async def get_market_vna() -> dict:
     """Return the currently cached VNA for IPCA+ bonds."""
     return inflation_service.get_cache_info()
+
+
+@router.get(
+    "/market/quote/{ticker}",
+    response_model=MarketQuoteResponse,
+    summary="Get real-time market quote for a ticker (Ações/FIIs)",
+    tags=["Market Data"],
+)
+async def get_market_quote(
+    ticker: str,
+    quantity: float | None = Query(None, description="Optional quantity for portfolio valuation")
+) -> MarketQuoteResponse:
+    """
+    Get the real-time market quote for a Brazilian stock or real estate fund.
+    Data is fetched from BRAPI and cached to avoid rate limits.
+    """
+    try:
+        quote_data = await market_service.get_market_quote(ticker)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
+            detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
+        ) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error fetching market quote for %s", ticker)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+        ) from exc
+
+    response = MarketQuoteResponse(
+        ticker=ticker.upper(),
+        unit_price=quote_data["price"],
+        updated_at=quote_data["updated_at"],
+    )
+
+    if quantity is not None:
+        response.quantity = quantity
+        response.position_value = round(quote_data["price"] * quantity, 2)
+
+    return response
 
 
 # ---------------------------------------------------------------------------
