@@ -182,3 +182,31 @@ async def update_all_cache() -> dict:
 def get_cache_info() -> dict:
     """Retorna informações do cache persistente."""
     return cache_repository.get_all()
+
+
+def load_cache_to_memory() -> None:
+    """Carrega o cache persistente na memória dos serviços ao iniciar a aplicação."""
+    logger.info("Loading persistent cache to memory...")
+    
+    curves_data = cache_repository.get(CACHE_KEYS["curves"])
+    if curves_data:
+        curve_service._cache.pre_curve = curves_data.get("pre_curve", curve_service._cache.pre_curve)
+        curve_service._cache.ipca_curve = curves_data.get("ipca_curve", curve_service._cache.ipca_curve)
+        curve_service._cache.selic_rate = curves_data.get("selic_rate", curve_service._cache.selic_rate)
+        curve_service._cache.lft_vna = curves_data.get("lft_vna", curve_service._cache.lft_vna)
+        if curves_data.get("last_updated"):
+            from datetime import datetime
+            curve_service._cache.last_updated = datetime.fromisoformat(curves_data["last_updated"])
+        curve_service._cache.using_fallback = curves_data.get("using_fallback", True)
+        logger.info("Loaded curves cache: SELIC=%s", curve_service._cache.selic_rate)
+    
+    inflation_data = cache_repository.get(CACHE_KEYS["inflation"])
+    if inflation_data:
+        inflation_service._cache.vna = inflation_data.get("vna", inflation_service._cache.vna)
+        if inflation_data.get("last_updated"):
+            from datetime import datetime
+            inflation_service._cache.last_updated = datetime.fromisoformat(inflation_data["last_updated"])
+        inflation_service._cache.using_fallback = inflation_data.get("using_fallback", True)
+        logger.info("Loaded inflation cache: VNA=%s", inflation_service._cache.vna)
+    
+    logger.info("Persistent cache loaded to memory successfully")

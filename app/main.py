@@ -16,6 +16,7 @@ from app.api.routes import router as api_router
 from app.api.investments_routes import router as investments_router
 from app.config import settings
 from app.services import curve_service, inflation_service
+from app.services.investment_service import load_cache_to_memory
 
 # ---------------------------------------------------------------------------
 # Logging configuration
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     logger.info("Starting Tesouro Pricing Service (env=%s)...", settings.app_env)
+    load_cache_to_memory()
     yield
     logger.info("Tesouro Pricing Service stopped.")
 
