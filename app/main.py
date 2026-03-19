@@ -13,8 +13,8 @@ from pathlib import Path
 from enum import Enum
 
 from app.api.routes import router as api_router
+from app.api.investments_routes import router as investments_router
 from app.config import settings
-from app.jobs.update_market_data import run_initial_data_load, start_scheduler, stop_scheduler
 from app.services import curve_service, inflation_service
 
 # ---------------------------------------------------------------------------
@@ -33,12 +33,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start the scheduler and eagerly fetch market data on startup."""
+    """Application lifespan handler."""
     logger.info("Starting Tesouro Pricing Service (env=%s)...", settings.app_env)
-    start_scheduler()
-    await run_initial_data_load()
     yield
-    stop_scheduler()
     logger.info("Tesouro Pricing Service stopped.")
 
 
@@ -75,6 +72,7 @@ app = FastAPI(
 # Routers & Unprotected Endpoints
 # ---------------------------------------------------------------------------
 app.include_router(api_router)
+app.include_router(investments_router)
 
 
 class DocLanguage(str, Enum):

@@ -18,8 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY ./app ./app
 
-# Create directory for persistent data (sqlite db)
-RUN mkdir -p /app/data
+# Create directory for persistent data (sqlite db and cache)
+RUN mkdir -p /app/data /app/cache_data
 
 # Ensure main starts the app properly
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

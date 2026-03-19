@@ -1,0 +1,19 @@
+name: update-investments
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call API to update cache
+        run: |
+          curl -X POST "${{ secrets.API_BASE_URL }}/investments/update-cache" \
+            -H "Authorization: Bearer ${{ secrets.API_AUTH_TOKEN }}" \
+            -H "Content-Type: application/json"
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
