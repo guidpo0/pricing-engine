@@ -17,6 +17,7 @@ from app.api.investments_routes import router as investments_router
 from app.config import settings
 from app.services import curve_service, inflation_service
 from app.services.investment_service import load_cache_to_memory
+from app.middleware import LoggingMiddleware
 
 # ---------------------------------------------------------------------------
 # Logging configuration
@@ -52,10 +53,10 @@ app = FastAPI(
         "(Preço Unitário - PU) for Brazilian government bonds from the "
         "**Tesouro Direto** program.\n\n"
         "Supported bonds:\n"
-        "- **PREFIXADO** — Tesouro Prefixado (LTN)\n"
-        "- **PREFIXADO_JUROS** — Tesouro Prefixado com juros semestrais (NTN-F)\n"
-        "- **IPCA** — Tesouro IPCA+ (NTN-B Principal)\n"
-        "- **IPCA_JUROS** — Tesouro IPCA+ com juros semestrais (NTN-B)\n"
+        "- **PREFIXADO** — Tesouro Prefixado (LTN)"
+        "- **PREFIXADO_JUROS** — Tesouro Prefixado com juros semestrais (NTN-F)"
+        "- **IPCA** — Tesouro IPCA+ (NTN-B Principal)"
+        "- **IPCA_JUROS** — Tesouro IPCA+ com juros semestrais (NTN-B)"
         "- **SELIC** — Tesouro Selic (LFT)\n\n"
         "Market data is automatically refreshed daily from ANBIMA and Banco Central do Brasil."
     ),
@@ -69,6 +70,9 @@ app = FastAPI(
     },
     lifespan=lifespan,
 )
+
+# Add logging middleware
+app.add_middleware(LoggingMiddleware)
 
 # ---------------------------------------------------------------------------
 # Routers & Unprotected Endpoints
@@ -310,15 +314,54 @@ async def health_check() -> dict:
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+    logger.error(
+        "Validation error | %s | %s | %s",
+        request.method,
+        request.url.path,
+        str(exc),
+    )
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"error": "VALIDATION_ERROR", "detail": str(exc), "code": "VALIDATION_ERROR"},
     )
 
 
+@app.exception_handler(ConnectionError)
+async def connection_error_handler(request: Request, exc: ConnectionError) -> JSONResponse:
+    logger.error(
+        "Connection error | %s | %s | %s",
+        request.method,
+        request.url.path,
+        str(exc),
+    )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"error": "SERVICE_UNAVAILABLE", "detail": "External service unavailable", "code": "CONNECTION_ERROR"},
+    )
+
+
+@app.exception_handler(TimeoutError)
+async def timeout_error_handler(request: Request, exc: TimeoutError) -> JSONResponse:
+    logger.error(
+        "Timeout error | %s | %s | %s",
+        request.method,
+        request.url.path,
+        str(exc),
+    )
+    return JSONResponse(
+        status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+        content={"error": "GATEWAY_TIMEOUT", "detail": "Request to external service timed out", "code": "TIMEOUT_ERROR"},
+    )
+
+
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("Unhandled exception on %s %s", request.method, request.url)
+    logger.exception(
+        "Unhandled exception | %s | %s | %s",
+        request.method,
+        request.url.path,
+        str(exc),
+    )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"error": "INTERNAL_ERROR", "detail": "An unexpected error occurred.", "code": "INTERNAL_ERROR"},
