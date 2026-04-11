@@ -6,7 +6,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from contextlib import contextmanager
-from urllib.parse import urlparse
 
 import psycopg2
 from psycopg2 import pool
@@ -22,39 +21,50 @@ def _get_connection_pool():
     """Get or create the PostgreSQL connection pool."""
     global _connection_pool
     if _connection_pool is None:
-        if not settings.database_url:
-            logger.error("DATABASE_URL is not configured")
-            raise ValueError("DATABASE_URL environment variable is required")
+        database_url = settings.database_url
+        if not database_url:
+            logger.warning("DATABASE_URL not set, database features disabled")
+            return None
         
-        # Parse URL and add sslmode
-        parsed = urlparse(settings.database_url)
-        # Add sslmode to connection string
-        if 'sslmode' not in settings.database_url:
-            dsn = f"{settings.database_url}&sslmode=require"
-        else:
-            dsn = settings.database_url
+        # Add sslmode if not present
+        if 'sslmode' not in database_url:
+            if '?' in database_url:
+                database_url = f"{database_url}&sslmode=require"
+            else:
+                database_url = f"{database_url}?sslmode=require"
         
-        _connection_pool = pool.ThreadedConnectionPool(
-            minconn=1,
-            maxconn=10,
-            dsn=dsn,
-        )
+        try:
+            _connection_pool = pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=10,
+                dsn=database_url,
+            )
+            logger.info("Database connection pool created successfully")
+        except Exception as e:
+            logger.error("Failed to create database connection pool: %s", e)
+            return None
     return _connection_pool
 
 
-@contextmanager
 def get_connection():
     """Get a connection from the pool."""
-    conn = _get_connection_pool().getconn()
+    pool_obj = _get_connection_pool()
+    if pool_obj is None:
+        raise Exception("Database connection not available - DATABASE_URL not configured")
+    conn = pool_obj.getconn()
     try:
         yield conn
     finally:
-        _get_connection_pool().putconn(conn)
+        pool_obj.putconn(conn)
 
 
 def init_db() -> None:
     """Initialize the database with the required tables."""
     try:
+        pool_obj = _get_connection_pool()
+        if pool_obj is None:
+            logger.warning("Database not available, skipping initialization")
+            return
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute('''

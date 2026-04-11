@@ -11,7 +11,6 @@ from typing import Any, Optional
 
 import psycopg2
 from psycopg2 import pool
-from psycopg2.extras import RealDictCursor
 
 from app.config import settings
 
@@ -35,13 +34,26 @@ def _get_connection_pool():
     """Get or create the PostgreSQL connection pool."""
     global _connection_pool
     if _connection_pool is None:
-        if not settings.database_url:
-            raise ValueError("DATABASE_URL is not configured")
-        _connection_pool = pool.ThreadedConnectionPool(
-            minconn=1,
-            maxconn=10,
-            dsn=settings.database_url,
-        )
+        database_url = settings.database_url
+        if not database_url:
+            logger.warning("DATABASE_URL not set, cache features disabled")
+            return None
+        
+        if 'sslmode' not in database_url:
+            if '?' in database_url:
+                database_url = f"{database_url}&sslmode=require"
+            else:
+                database_url = f"{database_url}?sslmode=require"
+        
+        try:
+            _connection_pool = pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=10,
+                dsn=database_url,
+            )
+        except Exception as e:
+            logger.error("Failed to create connection pool: %s", e)
+            return None
     return _connection_pool
 
 
