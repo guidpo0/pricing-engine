@@ -72,7 +72,7 @@ def _return_connection(conn):
         pool_obj.putconn(conn)
 
 
-class CacheRepository:
+class HistoryRepository:
     def __init__(self):
         pass
 
