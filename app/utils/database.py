@@ -46,6 +46,7 @@ def _get_connection_pool():
     return _connection_pool
 
 
+@contextmanager
 def get_connection():
     """Get a connection from the pool."""
     pool_obj = _get_connection_pool()

@@ -59,12 +59,17 @@ def _get_connection_pool():
 
 def _get_connection():
     """Get a connection from the pool."""
-    return _get_connection_pool().getconn()
+    pool_obj = _get_connection_pool()
+    if pool_obj is None:
+        raise Exception("Database connection not available")
+    return pool_obj.getconn()
 
 
 def _return_connection(conn):
     """Return connection to the pool."""
-    _get_connection_pool().putconn(conn)
+    pool_obj = _get_connection_pool()
+    if pool_obj is not None:
+        pool_obj.putconn(conn)
 
 
 class CacheRepository:
