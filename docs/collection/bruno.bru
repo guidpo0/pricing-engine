@@ -1,0 +1,111 @@
+{
+  "name": "Pricing Engine - External APIs",
+  "version": "1",
+  "items": [
+    {
+      "name": "AwesomeAPI - USD-BRL",
+      "type": "request",
+      "request": {
+        "method": "GET",
+        "url": "https://economia.awesomeapi.com.br/last/USD-BRL"
+      }
+    },
+    {
+      "name": "BRAPI - PETR4",
+      "type": "request",
+      "request": {
+        "method": "GET",
+        "url": "https://brapi.dev/api/quote/PETR4"
+      }
+    },
+    {
+      "name": "TwelveData - AAPL",
+      "type": "request",
+      "request": {
+        "method": "GET",
+        "url": "https://api.twelvedata.com/price?symbol=AAPL&apikey={{TWELVE_DATA_API_KEY}}"
+      }
+    },
+    {
+      "name": "CoinMarketCap - Bitcoin",
+      "type": "request",
+      "request": {
+        "method": "GET",
+        "url": "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?slug=bitcoin",
+        "header": {
+          "X-CMC_PRO_API_KEY": "{{COINMARKET_API_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "Pricing Engine - Currency USD-BRL",
+      "type": "request",
+      "request": {
+        "method": "GET",
+        "url": "{{PRICING_ENGINE_URL}}/market/currency/USD/BRL",
+        "header": {
+          "X-API-Key": "{{API_AUTH_TOKEN}}"
+        }
+      }
+    },
+    {
+      "name": "Pricing Engine - BR Stock PETR4",
+      "type": "request",
+      "request": {
+        "method": "GET",
+        "url": "{{PRICING_ENGINE_URL}}/market/quote/PETR4",
+        "header": {
+          "X-API-Key": "{{API_AUTH_TOKEN}}"
+        }
+      }
+    },
+    {
+      "name": "Pricing Engine - US Stock AAPL",
+      "type": "request",
+      "request": {
+        "method": "GET",
+        "url": "{{PRICING_ENGINE_URL}}/market/us/quote/AAPL",
+        "header": {
+          "X-API-Key": "{{API_AUTH_TOKEN}}"
+        }
+      }
+    },
+    {
+      "name": "Pricing Engine - Crypto Bitcoin",
+      "type": "request",
+      "request": {
+        "method": "GET",
+        "url": "{{PRICING_ENGINE_URL}}/market/crypto/bitcoin",
+        "header": {
+          "X-API-Key": "{{API_AUTH_TOKEN}}"
+        }
+      }
+    },
+    {
+      "name": "Health Check",
+      "type": "request",
+      "request": {
+        "method": "GET",
+        "url": "{{PRICING_ENGINE_URL}}/health"
+      }
+    }
+  ],
+  "variables": [
+    {
+      "name": "PRICING_ENGINE_URL",
+      "value": "https://pricing-engine-d5ed.onrender.com"
+    },
+    {
+      "name": "API_AUTH_TOKEN",
+      "value": ""
+    },
+    {
+      "name": "TWELVE_DATA_API_KEY",
+      "value": ""
+    },
+    {
+      "name": "COINMARKET_API_KEY",
+      "value": ""
+    }
+  ]
+}
