@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 
 from app.config import settings
 from app.utils.database import add_crypto_slug, get_all_crypto_slugs
-from app.history.cache_repository import history_repository
+from app.history.history_repository import history_repository
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 
 from app.config import settings
 from app.utils.database import add_ticker_us, get_all_tickers_us
-from app.history.cache_repository import history_repository
+from app.history.history_repository import history_repository
 
 logger = logging.getLogger(__name__)
 

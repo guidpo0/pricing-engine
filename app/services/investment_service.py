@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 
 from app.history import history_repository
-from app.history.cache_repository import HISTORY_KEYS
+from app.history.history_repository import HISTORY_KEYS
 from app.config import settings
 from app.services import (
     curve_service, inflation_service, cdb_service,

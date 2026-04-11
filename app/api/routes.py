@@ -36,7 +36,7 @@ from app.utils.database import (
     get_all_crypto_slugs, get_all_currency_pairs
 )
 from app.history import history_repository
-from app.history.cache_repository import HISTORY_KEYS
+from app.history.history_repository import HISTORY_KEYS
 
 logger = logging.getLogger(__name__)
 
