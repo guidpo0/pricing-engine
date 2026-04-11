@@ -18,7 +18,8 @@ services:
         generateValue: true
       - key: PORT
         value: 8000
-      - key: DATABASE_URL
-        value: "postgresql://postgres:7fwmwxvMFuOgM0fi@db.ylyflewubyvervbecfna.supabase.co:5432/postgres"
       - key: DATABASE_TYPE
         value: "postgresql"
+      - key: DATABASE_URL
+        sync: false
+        value: "SET_DATABASE_URL_IN_RENDER_DASHBOARD"
