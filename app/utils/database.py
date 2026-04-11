@@ -6,10 +6,10 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from contextlib import contextmanager
+from urllib.parse import urlparse
 
 import psycopg2
 from psycopg2 import pool
-from psycopg2.extras import RealDictCursor
 
 from app.config import settings
 
@@ -23,11 +23,21 @@ def _get_connection_pool():
     global _connection_pool
     if _connection_pool is None:
         if not settings.database_url:
-            raise ValueError("DATABASE_URL is not configured")
+            logger.error("DATABASE_URL is not configured")
+            raise ValueError("DATABASE_URL environment variable is required")
+        
+        # Parse URL and add sslmode
+        parsed = urlparse(settings.database_url)
+        # Add sslmode to connection string
+        if 'sslmode' not in settings.database_url:
+            dsn = f"{settings.database_url}&sslmode=require"
+        else:
+            dsn = settings.database_url
+        
         _connection_pool = pool.ThreadedConnectionPool(
             minconn=1,
             maxconn=10,
-            dsn=settings.database_url,
+            dsn=dsn,
         )
     return _connection_pool
 
