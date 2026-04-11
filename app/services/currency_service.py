@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 
 from app.config import settings
 from app.utils.database import add_currency_pair, get_all_currency_pairs
+from app.cache.cache_repository import cache_repository
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +38,10 @@ def _set_in_cache(pair: str, price: float) -> None:
 
 async def get_currency_quote(from_currency: str, to_currency: str) -> dict:
     """
-    Fetch market quote for a currency pair from AwesomeAPI or cache.
-    On 429, logs warning and returns fallback cache (if available).
+    Fetch market quote for a currency pair from AwesomeAPI or cache/database.
+    On 429, logs warning and returns fallback from database (if available).
     On 5xx, retries up to 3 times with exponential backoff.
+    Saves all quotes to PostgreSQL history.
     """
     from_currency = from_currency.upper()
     to_currency = to_currency.upper()
@@ -47,16 +49,28 @@ async def get_currency_quote(from_currency: str, to_currency: str) -> dict:
     pair = f"{from_currency}-{to_currency}"
     add_currency_pair(pair)
     
+    # Try to get from in-memory cache first
     cached_price = _get_from_cache(pair)
     
     if cached_price is not None:
-        logger.debug("Quote for currency pair %s found in cache", pair)
+        logger.debug("Quote for currency pair %s found in memory cache", pair)
         return {
             "price": cached_price,
             "updated_at": _quote_cache[pair]["updated_at"]
         }
 
-    # AwesomeAPI uses exactly the USD-BRL format in the URL
+    # Try to get from database (latest historical record)
+    db_quote = cache_repository.get_latest_currency_quote(pair)
+    if db_quote:
+        logger.debug("Quote for currency pair %s found in database", pair)
+        # Update in-memory cache
+        _set_in_cache(pair, float(db_quote["unit_price"]))
+        return {
+            "price": float(db_quote["unit_price"]),
+            "updated_at": db_quote["recorded_at"]
+        }
+    
+    # Fetch from external API
     url = f"{settings.awesome_api_base_url}/last/{pair}"
 
     async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
@@ -73,6 +87,13 @@ async def get_currency_quote(from_currency: str, to_currency: str) -> dict:
                     if dict_key in data and "bid" in data[dict_key]:
                         price = float(data[dict_key]["bid"])
                         _set_in_cache(pair, price)
+                        
+                        # Save to PostgreSQL history
+                        try:
+                            cache_repository.insert_currency_quote(pair, price)
+                        except Exception as e:
+                            logger.warning("Failed to save currency quote to database: %s", e)
+                        
                         return {
                             "price": price,
                             "updated_at": _quote_cache[pair]["updated_at"]
@@ -84,12 +105,13 @@ async def get_currency_quote(from_currency: str, to_currency: str) -> dict:
                     raise ValueError(f"Currency pair {pair} not found on AwesomeAPI")
                 
                 elif response.status_code == 429:
-                    logger.warning("Rate limit (429) hit for currency pair %s. Falling back to old cache.", pair)
-                    fallback = _get_fallback_cache(pair)
-                    if fallback is not None:
+                    logger.warning("Rate limit (429) hit for currency pair %s. Falling back to database cache.", pair)
+                    
+                    # Try database fallback before raising error
+                    if db_quote:
                         return {
-                            "price": fallback,
-                            "updated_at": _quote_cache[pair]["updated_at"]
+                            "price": float(db_quote["unit_price"]),
+                            "updated_at": db_quote["recorded_at"]
                         }
                     raise ValueError(f"Rate limit exceeded for {pair} on first fetch (no cache available). Try again later.")
                 

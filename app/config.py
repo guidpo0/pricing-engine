@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     api_auth_token: str = ""
 
+    # Database Configuration
+    database_url: str = ""
+    database_type: str = "postgresql"
 
     # Scheduled job hours (24h UTC)
     curve_update_hour: int = 8
@@ -28,7 +31,6 @@ class Settings(BaseSettings):
     job_market_days: str = "mon-fri"
     job_crypto_hours: str = "*/4"
     job_crypto_days: str = "*"
-
 
     # External APIs
     bcb_sgs_base_url: str = "https://api.bcb.gov.br/dados/serie/bcdata.sgs"

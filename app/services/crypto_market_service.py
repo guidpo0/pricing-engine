@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 
 from app.config import settings
 from app.utils.database import add_crypto_slug, get_all_crypto_slugs
+from app.cache.cache_repository import cache_repository
 
 logger = logging.getLogger(__name__)
 
@@ -37,20 +38,32 @@ def _set_in_cache(slug: str, price: float) -> None:
 
 async def get_crypto_quote(slug: str) -> dict:
     """
-    Fetch market quote for a crypto slug from CoinMarketCap or cache.
-    On 429, logs warning and returns fallback cache (if available).
+    Fetch market quote for a crypto slug from CoinMarketCap or cache/database.
+    On 429, logs warning and returns fallback from database (if available).
     On 5xx, retries up to 3 times with exponential backoff.
+    Saves all quotes to PostgreSQL history.
     """
     slug = slug.lower()
     add_crypto_slug(slug)
     
+    # Try to get from in-memory cache first
     cached_price = _get_from_cache(slug)
     
     if cached_price is not None:
-        logger.debug("Quote for crypto slug %s found in cache", slug)
+        logger.debug("Quote for crypto slug %s found in memory cache", slug)
         return {
             "price": cached_price,
             "updated_at": _quote_cache[slug]["updated_at"]
+        }
+
+    # Try to get from database (latest historical record)
+    db_quote = cache_repository.get_latest_crypto_quote(slug)
+    if db_quote:
+        logger.debug("Quote for crypto slug %s found in database", slug)
+        _set_in_cache(slug, float(db_quote["unit_price"]))
+        return {
+            "price": float(db_quote["unit_price"]),
+            "updated_at": db_quote["recorded_at"]
         }
 
     url = f"{settings.coin_market_base_url}/v2/cryptocurrency/quotes/latest"
@@ -72,6 +85,13 @@ async def get_crypto_quote(slug: str) -> dict:
                         if "quote" in coin_data and "USD" in coin_data["quote"]:
                             price = float(coin_data["quote"]["USD"]["price"])
                             _set_in_cache(slug, price)
+                            
+                            # Save to PostgreSQL history
+                            try:
+                                cache_repository.insert_crypto_quote(slug, price, "USD")
+                            except Exception as e:
+                                logger.warning("Failed to save crypto quote to database: %s", e)
+                            
                             return {
                                 "price": price,
                                 "updated_at": _quote_cache[slug]["updated_at"]

@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 
 from app.config import settings
 from app.utils.database import add_ticker_us, get_all_tickers_us
+from app.cache.cache_repository import cache_repository
 
 logger = logging.getLogger(__name__)
 
@@ -40,22 +41,34 @@ def _set_in_cache(ticker: str, price: float) -> None:
 
 async def get_us_market_quote(ticker: str) -> dict:
     """
-    Fetch market quote for a US ticker from TwelveData or cache.
-    On 429, logs warning and returns fallback cache (if available).
+    Fetch market quote for a US ticker from TwelveData or cache/database.
+    On 429, logs warning and returns fallback from database (if available).
     On 5xx, retries up to 3 times with exponential backoff.
+    Saves all quotes to PostgreSQL history.
     """
     ticker = ticker.upper()
     
     # Store ticker in the background DB
     add_ticker_us(ticker)
     
+    # Try to get from in-memory cache first
     cached_price = _get_from_cache(ticker)
     
     if cached_price is not None:
-        logger.debug("Quote for US ticker %s found in cache", ticker)
+        logger.debug("Quote for US ticker %s found in memory cache", ticker)
         return {
             "price": cached_price,
             "updated_at": _quote_cache[ticker]["updated_at"]
+        }
+
+    # Try to get from database (latest historical record)
+    db_quote = cache_repository.get_latest_stock_quote_us(ticker)
+    if db_quote:
+        logger.debug("Quote for US ticker %s found in database", ticker)
+        _set_in_cache(ticker, float(db_quote["unit_price"]))
+        return {
+            "price": float(db_quote["unit_price"]),
+            "updated_at": db_quote["recorded_at"]
         }
 
     url = f"{settings.twelve_data_base_url}/price"
@@ -72,6 +85,13 @@ async def get_us_market_quote(ticker: str) -> dict:
                 if response.status_code == 200 and "price" in data:
                     price = float(data["price"])
                     _set_in_cache(ticker, price)
+                    
+                    # Save to PostgreSQL history
+                    try:
+                        cache_repository.insert_stock_quote_us(ticker, price, "USD")
+                    except Exception as e:
+                        logger.warning("Failed to save US stock quote to database: %s", e)
+                    
                     return {
                         "price": price,
                         "updated_at": _quote_cache[ticker]["updated_at"]
