@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 
 from app.config import settings
 from app.utils.database import add_crypto_slug, get_all_crypto_slugs
-from app.cache.cache_repository import cache_repository
+from app.history.cache_repository import history_repository
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ async def get_crypto_quote(slug: str) -> dict:
         }
 
     # Try to get from database (latest historical record)
-    db_quote = cache_repository.get_latest_crypto_quote(slug)
+    db_quote = history_repository.get_latest_crypto_quote(slug)
     if db_quote:
         logger.debug("Quote for crypto slug %s found in database", slug)
         _set_in_cache(slug, float(db_quote["unit_price"]))
@@ -88,7 +88,7 @@ async def get_crypto_quote(slug: str) -> dict:
                             
                             # Save to PostgreSQL history
                             try:
-                                cache_repository.insert_crypto_quote(slug, price, "USD")
+                                history_repository.insert_crypto_quote(slug, price, "USD")
                             except Exception as e:
                                 logger.warning("Failed to save crypto quote to database: %s", e)
                             

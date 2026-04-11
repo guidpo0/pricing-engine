@@ -1,6 +1,6 @@
 """
-Cache repository for Pricing Engine using PostgreSQL.
-Stores historical data in separate tables instead of JSON.
+History repository for Pricing Engine using PostgreSQL.
+Stores historical data in separate tables.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 _connection_pool = None
 
-CACHE_KEYS = {
+HISTORY_KEYS = {
     "curves": "curves",
     "inflation": "inflation",
     "br_stocks": "br_stocks",
@@ -273,4 +273,4 @@ class CacheRepository:
         self._execute('DELETE FROM inflation_history')
 
 
-cache_repository = CacheRepository()
+history_repository = HistoryRepository()

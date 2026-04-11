@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 
 from app.config import settings
 from app.utils.database import add_ticker_us, get_all_tickers_us
-from app.cache.cache_repository import cache_repository
+from app.history.cache_repository import history_repository
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ async def get_us_market_quote(ticker: str) -> dict:
         }
 
     # Try to get from database (latest historical record)
-    db_quote = cache_repository.get_latest_stock_quote_us(ticker)
+    db_quote = history_repository.get_latest_stock_quote_us(ticker)
     if db_quote:
         logger.debug("Quote for US ticker %s found in database", ticker)
         _set_in_cache(ticker, float(db_quote["unit_price"]))
@@ -88,7 +88,7 @@ async def get_us_market_quote(ticker: str) -> dict:
                     
                     # Save to PostgreSQL history
                     try:
-                        cache_repository.insert_stock_quote_us(ticker, price, "USD")
+                        history_repository.insert_stock_quote_us(ticker, price, "USD")
                     except Exception as e:
                         logger.warning("Failed to save US stock quote to database: %s", e)
                     

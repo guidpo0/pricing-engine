@@ -20,8 +20,8 @@ from app.utils.database import (
     get_all_tickers, get_all_tickers_us,
     get_all_crypto_slugs, get_all_currency_pairs
 )
-from app.cache import cache_repository
-from app.cache.cache_repository import CACHE_KEYS
+from app.history import history_repository
+from app.history.cache_repository import HISTORY_KEYS
 
 logger = logging.getLogger(__name__)
 
@@ -75,10 +75,10 @@ async def get_cache_information():
 )
 async def get_cache_status():
     """Retorna o status do cache - se está fresco ou precisa de atualização."""
-    cache_data = cache_repository.get_all()
+    cache_data = history_repository.get_all()
     updated_at = cache_data.get("updated_at")
     
-    is_fresh = cache_repository.is_cache_fresh("curves", max_age_hours=24)
+    is_fresh = history_repository.is_cache_fresh("curves", max_age_hours=24)
     
     return {
         "has_cache": updated_at is not None,
@@ -122,7 +122,7 @@ async def get_br_quote(
     
     Se o cache não existir, executa automaticamente a atualização.
     """
-    cached_data = cache_repository.get(CACHE_KEYS["br_stocks"])
+    cached_data = history_repository.get(HISTORY_KEYS["br_stocks"])
     
     if not cached_data:
         logger.info("No cache found, triggering automatic update...")
@@ -166,7 +166,7 @@ async def get_us_quote(
     quantity: float | None = Query(None, description="Optional quantity for portfolio valuation")
 ):
     """Get market quote for a US stock with fallback."""
-    cached_data = cache_repository.get(CACHE_KEYS["us_stocks"])
+    cached_data = history_repository.get(HISTORY_KEYS["us_stocks"])
     
     if not cached_data:
         logger.info("No cache found, triggering automatic update...")
@@ -210,7 +210,7 @@ async def get_crypto_quote(
     quantity: float | None = Query(None, description="Optional quantity for portfolio valuation")
 ):
     """Get market quote for a cryptocurrency with fallback."""
-    cached_data = cache_repository.get(CACHE_KEYS["crypto"])
+    cached_data = history_repository.get(HISTORY_KEYS["crypto"])
     
     if not cached_data:
         logger.info("No cache found, triggering automatic update...")
@@ -255,7 +255,7 @@ async def get_currency_quote(
     quantity: float | None = Query(None, description="Optional quantity to convert")
 ):
     """Get market quote for a currency pair with fallback."""
-    cached_data = cache_repository.get(CACHE_KEYS["currencies"])
+    cached_data = history_repository.get(HISTORY_KEYS["currencies"])
     
     if not cached_data:
         logger.info("No cache found, triggering automatic update...")

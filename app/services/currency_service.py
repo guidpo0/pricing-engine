@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 
 from app.config import settings
 from app.utils.database import add_currency_pair, get_all_currency_pairs
-from app.cache.cache_repository import cache_repository
+from app.history.cache_repository import history_repository
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ async def get_currency_quote(from_currency: str, to_currency: str) -> dict:
         }
 
     # Try to get from database (latest historical record)
-    db_quote = cache_repository.get_latest_currency_quote(pair)
+    db_quote = history_repository.get_latest_currency_quote(pair)
     if db_quote:
         logger.debug("Quote for currency pair %s found in database", pair)
         # Update in-memory cache
@@ -90,7 +90,7 @@ async def get_currency_quote(from_currency: str, to_currency: str) -> dict:
                         
                         # Save to PostgreSQL history
                         try:
-                            cache_repository.insert_currency_quote(pair, price)
+                            history_repository.insert_currency_quote(pair, price)
                         except Exception as e:
                             logger.warning("Failed to save currency quote to database: %s", e)
                         

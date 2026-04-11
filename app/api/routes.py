@@ -35,8 +35,8 @@ from app.utils.database import (
     get_all_tickers, get_all_tickers_us,
     get_all_crypto_slugs, get_all_currency_pairs
 )
-from app.cache import cache_repository
-from app.cache.cache_repository import CACHE_KEYS
+from app.history import history_repository
+from app.history.cache_repository import HISTORY_KEYS
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +190,7 @@ async def get_market_quote(
     Data is fetched from BRAPI and cached to avoid rate limits.
     If no persistent cache exists, triggers automatic update.
     """
-    cached_data = cache_repository.get(CACHE_KEYS["br_stocks"])
+    cached_data = history_repository.get(HISTORY_KEYS["br_stocks"])
     if not cached_data:
         logger.info("No persistent cache found, triggering automatic update...")
         await update_all_cache()
@@ -231,7 +231,7 @@ async def get_us_market_quote(
     ticker: str,
     quantity: float | None = Query(None, description="Optional quantity for portfolio valuation")
 ) -> MarketQuoteResponse:
-    cached_data = cache_repository.get(CACHE_KEYS["us_stocks"])
+    cached_data = history_repository.get(HISTORY_KEYS["us_stocks"])
     if not cached_data:
         logger.info("No persistent cache found, triggering automatic update...")
         await update_all_cache()
@@ -272,7 +272,7 @@ async def get_crypto_quote(
     slug: str,
     quantity: float | None = Query(None, description="Optional quantity for portfolio valuation")
 ) -> MarketQuoteResponse:
-    cached_data = cache_repository.get(CACHE_KEYS["crypto"])
+    cached_data = history_repository.get(HISTORY_KEYS["crypto"])
     if not cached_data:
         logger.info("No persistent cache found, triggering automatic update...")
         await update_all_cache()
@@ -314,7 +314,7 @@ async def get_currency_quote(
     to_currency: str,
     quantity: float | None = Query(None, description="Optional quantity to convert")
 ) -> MarketQuoteResponse:
-    cached_data = cache_repository.get(CACHE_KEYS["currencies"])
+    cached_data = history_repository.get(HISTORY_KEYS["currencies"])
     if not cached_data:
         logger.info("No persistent cache found, triggering automatic update...")
         await update_all_cache()

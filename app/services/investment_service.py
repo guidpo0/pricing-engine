@@ -2,8 +2,8 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from app.cache import cache_repository
-from app.cache.cache_repository import CACHE_KEYS
+from app.history import history_repository
+from app.history.cache_repository import HISTORY_KEYS
 from app.config import settings
 from app.services import (
     curve_service, inflation_service, cdb_service,
@@ -24,7 +24,7 @@ async def update_curves() -> dict:
     try:
         await curve_service.refresh_curves()
         curves_data = curve_service.get_cache_info()
-        cache_repository.set(CACHE_KEYS["curves"], curves_data)
+        history_repository.set(HISTORY_KEYS["curves"], curves_data)
         logger.info("Curves cache updated successfully")
         return {"status": "success", "data": "curves updated"}
     except Exception as e:
@@ -38,7 +38,7 @@ async def update_inflation() -> dict:
     try:
         await inflation_service.refresh_inflation()
         inflation_data = inflation_service.get_cache_info()
-        cache_repository.set(CACHE_KEYS["inflation"], inflation_data)
+        history_repository.set(HISTORY_KEYS["inflation"], inflation_data)
         logger.info("Inflation cache updated successfully")
         return {"status": "success", "data": "inflation updated"}
     except Exception as e:
@@ -60,7 +60,7 @@ async def update_br_stocks() -> dict:
             "tickers": tickers,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
-        cache_repository.set(CACHE_KEYS["br_stocks"], br_stocks_data)
+        history_repository.set(HISTORY_KEYS["br_stocks"], br_stocks_data)
         logger.info("BR stocks cache updated for %d tickers", len(tickers))
         return {"status": "success", "data": {"updated": len(tickers), "tickers": tickers}}
     except Exception as e:
@@ -88,7 +88,7 @@ async def update_us_stocks() -> dict:
             "tickers": tickers,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
-        cache_repository.set(CACHE_KEYS["us_stocks"], us_stocks_data)
+        history_repository.set(HISTORY_KEYS["us_stocks"], us_stocks_data)
         logger.info("US stocks cache updated for %d tickers", len(tickers))
         return {"status": "success", "data": {"updated": len(tickers), "tickers": tickers}}
     except Exception as e:
@@ -116,7 +116,7 @@ async def update_crypto() -> dict:
             "slugs": slugs,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
-        cache_repository.set(CACHE_KEYS["crypto"], crypto_data)
+        history_repository.set(HISTORY_KEYS["crypto"], crypto_data)
         logger.info("Crypto cache updated for %d slugs", len(slugs))
         return {"status": "success", "data": {"updated": len(slugs), "slugs": slugs}}
     except Exception as e:
@@ -145,7 +145,7 @@ async def update_currencies() -> dict:
             "pairs": pairs,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
-        cache_repository.set(CACHE_KEYS["currencies"], currencies_data)
+        history_repository.set(HISTORY_KEYS["currencies"], currencies_data)
         logger.info("Currencies cache updated for %d pairs", len(pairs))
         return {"status": "success", "data": {"updated": len(pairs), "pairs": pairs}}
     except Exception as e:
@@ -168,7 +168,7 @@ async def update_all_cache() -> dict:
     results["crypto"] = await update_crypto()
     results["currencies"] = await update_currencies()
 
-    cache_info = cache_repository.get_all()
+    cache_info = history_repository.get_all()
 
     logger.info("Full cache update completed. Updated at: %s", cache_info.get("updated_at"))
 
@@ -181,14 +181,14 @@ async def update_all_cache() -> dict:
 
 def get_cache_info() -> dict:
     """Retorna informações do cache persistente."""
-    return cache_repository.get_all()
+    return history_repository.get_all()
 
 
 def load_cache_to_memory() -> None:
     """Carrega o cache persistente na memória dos serviços ao iniciar a aplicação."""
     logger.info("Loading persistent cache to memory...")
     
-    curves_data = cache_repository.get(CACHE_KEYS["curves"])
+    curves_data = history_repository.get(HISTORY_KEYS["curves"])
     if curves_data:
         curve_service._cache.pre_curve = curves_data.get("pre_curve", curve_service._cache.pre_curve)
         curve_service._cache.ipca_curve = curves_data.get("ipca_curve", curve_service._cache.ipca_curve)
@@ -200,7 +200,7 @@ def load_cache_to_memory() -> None:
         curve_service._cache.using_fallback = curves_data.get("using_fallback", True)
         logger.info("Loaded curves cache: SELIC=%s", curve_service._cache.selic_rate)
     
-    inflation_data = cache_repository.get(CACHE_KEYS["inflation"])
+    inflation_data = history_repository.get(HISTORY_KEYS["inflation"])
     if inflation_data:
         inflation_service._cache.vna = inflation_data.get("vna", inflation_service._cache.vna)
         if inflation_data.get("last_updated"):
