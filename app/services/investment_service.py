@@ -127,18 +127,42 @@ async def update_currencies() -> dict:
         logger.debug("No tracked currency pairs found")
         return {"status": "success", "data": {"updated": 0, "pairs": []}}
 
+    updated_count = 0
+    failed_pairs = []
+    
     try:
         for pair in pairs:
-            try:
-                base, quote = pair.split("-")
-                quote_data = await currency_service.get_currency_quote(base, quote)
-                history_repository.insert_currency_quote(pair, quote_data["price"])
-            except Exception as e:
-                logger.warning("Failed to fetch currency %s: %s", pair, e)
-            await asyncio.sleep(2.0)
+            max_retries = 3
+            retry_delay = 10  # segundos
+            
+            for attempt in range(max_retries):
+                try:
+                    base, quote = pair.split("-")
+                    quote_data = await currency_service.get_currency_quote(base, quote)
+                    history_repository.insert_currency_quote(pair, quote_data["price"])
+                    logger.info("Currency %s updated: %s", pair, quote_data["price"])
+                    updated_count += 1
+                    break  # Sucesso, sai do loop de retry
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        logger.warning("Retry %d/%d for %s: %s. Waiting %ds...", 
+                            attempt + 1, max_retries, pair, e, retry_delay)
+                        await asyncio.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        logger.error("Failed to fetch currency %s after %d attempts: %s", 
+                            pair, max_retries, e)
+                        failed_pairs.append(pair)
+            
+            # Delay entre pares para evitar rate limit
+            await asyncio.sleep(5.0)
 
-        logger.info("Currencies history updated for %d pairs", len(pairs))
-        return {"status": "success", "data": {"updated": len(pairs), "pairs": pairs}}
+        logger.info("Currencies history updated for %d/%d pairs", updated_count, len(pairs))
+        if failed_pairs:
+            logger.warning("Failed pairs: %s", failed_pairs)
+        
+        return {"status": "success" if updated_count == len(pairs) else "partial", 
+                "data": {"updated": updated_count, "pairs": pairs, "failed": failed_pairs}}
     except Exception as e:
         logger.error("Failed to update currencies: %s", e)
         return {"status": "error", "detail": str(e)}
