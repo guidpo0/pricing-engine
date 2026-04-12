@@ -5,11 +5,11 @@ meta {
 }
 
 get {
-  url: {{base_url}}/market/quote/crypto/bitcoin?quantity=0.5
+  url: {{base_url}}/market/quote/crypto/bitcoin
   body: none
   auth: none
 }
 
-query {
-  quantity: 0.5
+headers {
+  X-API-Key: {{api_key}}
 }

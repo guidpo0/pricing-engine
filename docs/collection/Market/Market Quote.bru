@@ -5,11 +5,11 @@ meta {
 }
 
 get {
-  url: {{base_url}}/market/quote/PETR4?quantity=100
+  url: {{base_url}}/market/quote/PETR4
   body: none
   auth: none
 }
 
-query {
-  quantity: 100
+headers {
+  X-API-Key: {{api_key}}
 }
