@@ -72,11 +72,14 @@ async def get_currency_quote(from_currency: str, to_currency: str) -> dict:
     
     # Fetch from external API
     url = f"{settings.awesome_api_base_url}/last/{pair}"
+    headers = {
+        "user-agent": "pricing-engine/1.0 (+https://github.com/guidpo0/pricing-engine)"
+    }
 
     async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
         for attempt in range(MAX_RETRIES):
             try:
-                response = await client.get(url)
+                response = await client.get(url, headers=headers)
                 
                 if response.status_code == 200:
                     data = response.json()
