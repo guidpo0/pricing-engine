@@ -91,12 +91,6 @@ async def get_currency_quote(from_currency: str, to_currency: str) -> dict:
                         price = float(data[dict_key]["bid"])
                         _set_in_cache(pair, price)
                         
-                        # Save to PostgreSQL history
-                        try:
-                            history_repository.insert_currency_quote(pair, price)
-                        except Exception as e:
-                            logger.warning("Failed to save currency quote to database: %s", e)
-                        
                         return {
                             "price": price,
                             "updated_at": _quote_cache[pair]["updated_at"]

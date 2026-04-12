@@ -105,12 +105,6 @@ async def get_market_quote(ticker: str) -> dict:
                     
                     _set_in_cache(ticker, price)
                     
-                    # Save to PostgreSQL history
-                    try:
-                        history_repository.insert_stock_quote(ticker, price, "BRL")
-                    except Exception as e:
-                        logger.warning("Failed to save stock quote to database: %s", e)
-                    
                     return {
                         "price": price,
                         "updated_at": _quote_cache[ticker]["updated_at"]

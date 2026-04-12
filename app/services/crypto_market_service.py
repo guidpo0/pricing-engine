@@ -86,12 +86,6 @@ async def get_crypto_quote(slug: str) -> dict:
                             price = float(coin_data["quote"]["USD"]["price"])
                             _set_in_cache(slug, price)
                             
-                            # Save to PostgreSQL history
-                            try:
-                                history_repository.insert_crypto_quote(slug, price, "USD")
-                            except Exception as e:
-                                logger.warning("Failed to save crypto quote to database: %s", e)
-                            
                             return {
                                 "price": price,
                                 "updated_at": _quote_cache[slug]["updated_at"]
