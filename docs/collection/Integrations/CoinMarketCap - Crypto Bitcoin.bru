@@ -1,0 +1,16 @@
+meta {
+  name: CoinMarketCap - Crypto Bitcoin
+  type: http
+  seq: 4
+}
+
+get {
+  url: https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?slug=bitcoin
+  body: none
+  auth: none
+}
+
+headers {
+  X-CMC_PRO_API_KEY: {{COINMARKET_API_KEY}}
+  User-Agent: pricing-engine/1.0 (+https://github.com/guidpo0/pricing-engine)
+}
