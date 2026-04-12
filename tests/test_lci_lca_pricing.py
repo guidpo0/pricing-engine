@@ -15,9 +15,9 @@ from app.services.lci_lca_pricing_engine import calculate_lci_lca
 @pytest.fixture(scope="module")
 def client():
     from app.main import app
-    with patch("app.main.start_scheduler"), patch("app.main.run_initial_data_load", new_callable=AsyncMock):
-        with TestClient(app, raise_server_exceptions=True) as c:
-            yield c
+    with TestClient(app, raise_server_exceptions=True) as c:
+        c.headers["X-API-Key"] = "wiawwuXSQm32jc4nRKgbYB"
+        yield c
 
 # ---------------------------------------------------------------------------
 # Engine Tests

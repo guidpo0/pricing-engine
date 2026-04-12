@@ -8,8 +8,15 @@ def clear_cache():
     yield
     _quote_cache.clear()
 
+@pytest.fixture(autouse=True)
+def mock_history_repository():
+    with patch("app.services.us_market_service.history_repository") as mock_repo:
+        mock_repo.get_latest_us_stock_quote.return_value = None
+        mock_repo.insert_us_stock_quote.return_value = None
+        yield mock_repo
+
 @pytest.mark.asyncio
-async def test_get_us_market_quote_success():
+async def test_get_us_market_quote_success(mock_history_repository):
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {"price": "150.25"}
@@ -37,7 +44,6 @@ async def test_get_us_market_quote_from_cache():
 async def test_get_us_market_quote_rate_limit_fallback():
     _set_in_cache("AAPL", 140.00)
     
-    # Simulate cache expiration
     _quote_cache["AAPL"]["expires_at"] = 0 
     
     mock_response = MagicMock()
@@ -47,14 +53,14 @@ async def test_get_us_market_quote_rate_limit_fallback():
         with patch("app.services.us_market_service.add_ticker_us"):
             result = await get_us_market_quote("AAPL")
             
-    assert result["price"] == 140.00 # Returned from fallback
+    assert result["price"] == 140.00
 
 @pytest.mark.asyncio
-async def test_get_us_market_quote_rate_limit_no_fallback():
+async def test_get_us_market_quote_rate_limit_no_fallback(mock_history_repository):
     mock_response = MagicMock()
     mock_response.status_code = 429
     
     with patch("httpx.AsyncClient.get", return_value=mock_response):
         with patch("app.services.us_market_service.add_ticker_us"):
-            with pytest.raises(ValueError, match="Rate limit exceeded for AAPL on first fetch \\(no cache available\\). Try again later."):
+            with pytest.raises(ValueError, match=r"Rate limit exceeded for AAPL on first fetch \(no cache available\)\. Try again later\."):
                 await get_us_market_quote("AAPL")

@@ -12,15 +12,13 @@ from fastapi.testclient import TestClient
 @pytest.fixture(scope="module")
 def client():
     """
-    TestClient with the scheduler and market data refresh disabled.
-    We patch the lifespan to avoid actual external HTTP calls during tests.
+    TestClient with the lifespan events.
     """
     from app.main import app
 
-    # Disable lifespan (scheduler + initial data load) for testing
-    with patch("app.main.start_scheduler"), patch("app.main.run_initial_data_load", new_callable=AsyncMock):
-        with TestClient(app, raise_server_exceptions=True) as c:
-            yield c
+    with TestClient(app, raise_server_exceptions=True) as c:
+        c.headers["X-API-Key"] = "wiawwuXSQm32jc4nRKgbYB"
+        yield c
 
 
 # ---------------------------------------------------------------------------
@@ -216,14 +214,17 @@ class TestMarketEndpoints:
         assert data["currencies"] == ["USD-BRL"]
 
     def test_market_quote_success(self, client):
-        with patch("app.api.routes.market_service.get_market_quote", new_callable=AsyncMock) as mock_get:
-            from datetime import datetime, timezone
-            mock_get.return_value = {
-                "price": 38.50,
-                "updated_at": datetime.now(timezone.utc)
-            }
-            response = client.get("/market/quote/PETR4")
-            
+        with patch("app.api.routes.history_repository") as mock_repo:
+            mock_repo.get_latest_stock_quote.return_value = None
+            mock_repo.insert_stock_quote.return_value = None
+            with patch("app.api.routes.market_service.get_market_quote", new_callable=AsyncMock) as mock_get:
+                from datetime import datetime, timezone
+                mock_get.return_value = {
+                    "price": 38.50,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+                response = client.get("/market/quote/PETR4")
+                
         assert response.status_code == 200
         data = response.json()
         assert data["ticker"] == "PETR4"
@@ -231,14 +232,17 @@ class TestMarketEndpoints:
         assert "quantity" not in data or data["quantity"] is None
 
     def test_market_quote_with_quantity(self, client):
-        with patch("app.api.routes.market_service.get_market_quote", new_callable=AsyncMock) as mock_get:
-            from datetime import datetime, timezone
-            mock_get.return_value = {
-                "price": 38.50,
-                "updated_at": datetime.now(timezone.utc)
-            }
-            response = client.get("/market/quote/PETR4?quantity=100")
-            
+        with patch("app.api.routes.history_repository") as mock_repo:
+            mock_repo.get_latest_stock_quote.return_value = None
+            mock_repo.insert_stock_quote.return_value = None
+            with patch("app.api.routes.market_service.get_market_quote", new_callable=AsyncMock) as mock_get:
+                from datetime import datetime, timezone
+                mock_get.return_value = {
+                    "price": 38.50,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+                response = client.get("/market/quote/PETR4?quantity=100")
+                
         assert response.status_code == 200
         data = response.json()
         assert data["ticker"] == "PETR4"
@@ -247,8 +251,11 @@ class TestMarketEndpoints:
         assert data["position_value"] == 3850.0
 
     def test_market_quote_not_found(self, client):
-        with patch("app.api.routes.market_service.get_market_quote", new_callable=AsyncMock) as mock_get:
-            mock_get.side_effect = ValueError("Ticker INVALID not found")
-            response = client.get("/market/quote/INVALID")
-            
+        with patch("app.api.routes.history_repository") as mock_repo:
+            mock_repo.get_latest_stock_quote.return_value = None
+            mock_repo.insert_stock_quote.return_value = None
+            with patch("app.api.routes.market_service.get_market_quote", new_callable=AsyncMock) as mock_get:
+                mock_get.side_effect = ValueError("Ticker INVALID not found")
+                response = client.get("/market/quote/INVALID")
+                
         assert response.status_code == 404

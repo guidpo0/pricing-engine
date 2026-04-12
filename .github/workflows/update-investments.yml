@@ -1,19 +1,271 @@
-name: update-investments
+name: Update Investments Data
 
 on:
   schedule:
-    - cron: "0 */2 * * *"
+    # Every 4 hours: 0h, 4h, 8h, 12h, 16h, 20h UTC
+    - cron: "0 */4 * * *"
   workflow_dispatch:
+    inputs:
+      force_wakeup:
+        description: "Force container wakeup before update"
+        required: false
+        default: "false"
+        type: boolean
+
+env:
+  API_BASE_URL: ${{ vars.API_BASE_URL }}
+  API_KEY: ${{ secrets.API_AUTH_TOKEN }}
 
 jobs:
-  update:
+  update-investments:
     runs-on: ubuntu-latest
+    name: Update Market Data
+    timeout-minutes: 30
+
     steps:
-      - name: Call API to update cache
+      # ============================================
+      # 1. Log workflow start
+      # ============================================
+      - name: Workflow started
         run: |
-          curl -X POST "${{ secrets.API_BASE_URL }}/investments/update-cache" \
-            -H "Authorization: Bearer ${{ secrets.API_AUTH_TOKEN }}" \
-            -H "Content-Type: application/json"
-        env:
-          API_BASE_URL: ${{ vars.API_BASE_URL }}
-          API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
+          echo "=============================================="
+          echo "🚀 UPDATE INVESTMENTS WORKFLOW STARTED"
+          echo "=============================================="
+          echo "📅 Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "🔗 API Base URL: ${{ env.API_BASE_URL }}"
+          echo "⏰ Trigger: ${{ github.event_name }}"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "📋 Cron Expression: ${{ github.event.schedule }}"
+          fi
+          echo "=============================================="
+
+      # ============================================
+      # 2. Check API health (wake up container)
+      # ============================================
+      - name: Check API Health & Wake Up Container
+        id: health-check
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "📡 STEP 1: Health Check (Wake Up Container)"
+          echo "=============================================="
+
+          echo "💤 Attempting to wake up Render container..."
+          echo "   Making request to /health endpoint..."
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            --max-time 30 \
+            "${{ env.API_BASE_URL }}/health")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo ""
+          echo "📊 HTTP Status Code: $HTTP_CODE"
+          echo "📦 Response Body:"
+          echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo ""
+            echo "✅ Container is awake and healthy!"
+            
+            # Extract and display health details
+            CURVES_UPDATED=$(echo "$BODY" | jq -r '.curves_last_updated // "N/A"' 2>/dev/null)
+            VNA_UPDATED=$(echo "$BODY" | jq -r '.vna_last_updated // "N/A"' 2>/dev/null)
+            CURVES_FALLBACK=$(echo "$BODY" | jq -r '.curves_using_fallback // "N/A"' 2>/dev/null)
+            VNA_FALLBACK=$(echo "$BODY" | jq -r '.vna_using_fallback // "N/A"' 2>/dev/null)
+            
+            echo ""
+            echo "📈 Health Details:"
+            echo "   • Curves Last Updated: $CURVES_UPDATED"
+            echo "   • VNA Last Updated: $VNA_UPDATED"
+            echo "   • Curves Using Fallback: $CURVES_FALLBACK"
+            echo "   • VNA Using Fallback: $VNA_FALLBACK"
+          else
+            echo ""
+            echo "❌ Health check failed! HTTP Code: $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "=============================================="
+
+      # ============================================
+      # 3. Check history status
+      # ============================================
+      - name: Check History Status
+        id: history-status
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "📜 STEP 2: Check History Status"
+          echo "=============================================="
+
+          echo "📊 Querying /investments/history-status..."
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            --max-time 30 \
+            -H "X-API-Key: ${{ env.API_KEY }}" \
+            "${{ env.API_BASE_URL }}/investments/history-status")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo ""
+          echo "📊 HTTP Status Code: $HTTP_CODE"
+          echo "📦 Response Body:"
+          echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
+
+          HAS_HISTORY=$(echo "$BODY" | jq -r '.has_history // false' 2>/dev/null)
+          LAST_UPDATED=$(echo "$BODY" | jq -r '.last_updated // "never"' 2>/dev/null)
+
+          echo ""
+          if [ "$HAS_HISTORY" = "true" ]; then
+            echo "✅ Historical data exists"
+            echo "   • Last Updated: $LAST_UPDATED"
+          else
+            echo "⚠️  No historical data found - this appears to be first run"
+          fi
+
+          echo "=============================================="
+
+      # ============================================
+      # 4. Update investments cache
+      # ============================================
+      - name: Update Investments Cache
+        id: update-cache
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "🔄 STEP 3: Update All Investments"
+          echo "=============================================="
+
+          echo "📡 Calling POST /investments/update-cache..."
+          echo "   This will update:"
+          echo "   • Yield Curves (ANBIMA)"
+          echo "   • Inflation/IPCA+ VNA (Central Bank)"
+          echo "   • CDI/SELIC rates (Central Bank)"
+          echo "   • Stock quotes (Brazil, US)"
+          echo "   • Crypto quotes"
+          echo "   • Currency rates"
+          echo ""
+
+          START_TIME=$(date +%s)
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            --max-time 300 \
+            -X POST \
+            -H "X-API-Key: ${{ env.API_KEY }}" \
+            -H "Content-Type: application/json" \
+            "${{ env.API_BASE_URL }}/investments/update-cache")
+
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo ""
+          echo "⏱️  Request Duration: ${DURATION}s"
+          echo "📊 HTTP Status Code: $HTTP_CODE"
+          echo "📦 Response Body:"
+          echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo ""
+            echo "✅ Update completed successfully!"
+            
+            # Extract results for each data type
+            STATUS=$(echo "$BODY" | jq -r '.status // "unknown"' 2>/dev/null)
+            UPDATED_AT=$(echo "$BODY" | jq -r '.updated_at // "N/A"' 2>/dev/null)
+            
+            echo ""
+            echo "📈 Update Results:"
+            echo "   • Overall Status: $STATUS"
+            echo "   • Updated At: $UPDATED_AT"
+            
+            # Individual results
+            echo ""
+            echo "📊 Individual Updates:"
+            
+            CURVES=$(echo "$BODY" | jq -r '.results.curves.status // "N/A"' 2>/dev/null)
+            echo "   • Yield Curves: $CURVES"
+            
+            INFLATION=$(echo "$BODY" | jq -r '.results.inflation.status // "N/A"' 2>/dev/null)
+            echo "   • Inflation/VNA: $INFLATION"
+            
+            BR_STOCKS=$(echo "$BODY" | jq -r '.results.br_stocks.status // "N/A"' 2>/dev/null)
+            BR_COUNT=$(echo "$BODY" | jq -r '.results.br_stocks.data.updated // 0' 2>/dev/null)
+            echo "   • BR Stocks ($BR_COUNT updated): $BR_STOCKS"
+            
+            US_STOCKS=$(echo "$BODY" | jq -r '.results.us_stocks.status // "N/A"' 2>/dev/null)
+            US_COUNT=$(echo "$BODY" | jq -r '.results.us_stocks.data.updated // 0' 2>/dev/null)
+            echo "   • US Stocks ($US_COUNT updated): $US_STOCKS"
+            
+            CRYPTO=$(echo "$BODY" | jq -r '.results.crypto.status // "N/A"' 2>/dev/null)
+            CRYPTO_COUNT=$(echo "$BODY" | jq -r '.results.crypto.data.updated // 0' 2>/dev/null)
+            echo "   • Crypto ($CRYPTO_COUNT updated): $CRYPTO"
+            
+            CURRENCIES=$(echo "$BODY" | jq -r '.results.currencies.status // "N/A"' 2>/dev/null)
+            CURR_COUNT=$(echo "$BODY" | jq -r '.results.currencies.data.updated // 0' 2>/dev/null)
+            echo "   • Currencies ($CURR_COUNT updated): $CURRENCIES"
+          else
+            echo ""
+            echo "❌ Update failed! HTTP Code: $HTTP_CODE"
+            
+            ERROR_CODE=$(echo "$BODY" | jq -r '.code // "UNKNOWN"' 2>/dev/null)
+            ERROR_DETAIL=$(echo "$BODY" | jq -r '.detail // "No details"' 2>/dev/null)
+            
+            echo "   • Error Code: $ERROR_CODE"
+            echo "   • Error Detail: $ERROR_DETAIL"
+            
+            exit 1
+          fi
+
+          echo "=============================================="
+
+      # ============================================
+      # 5. Verify update was saved
+      # ============================================
+      - name: Verify Update
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "✅ STEP 4: Verify Update"
+          echo "=============================================="
+
+          echo "📊 Checking history status after update..."
+
+          sleep 2
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            --max-time 30 \
+            -H "X-API-Key: ${{ env.API_KEY }}" \
+            "${{ env.API_BASE_URL }}/investments/history-status")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo ""
+          echo "📦 Response Body:"
+          echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
+
+          LAST_UPDATED=$(echo "$BODY" | jq -r '.last_updated // "N/A"' 2>/dev/null)
+
+          echo ""
+          echo "✅ Verification complete!"
+          echo "   • Latest Record: $LAST_UPDATED"
+
+          echo "=============================================="
+
+      # ============================================
+      # 6. Final summary
+      # ============================================
+      - name: Workflow Complete
+        run: |
+          echo ""
+          echo "=============================================="
+          echo "🎉 UPDATE INVESTMENTS WORKFLOW COMPLETED"
+          echo "=============================================="
+          echo "📅 Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "✅ All steps completed successfully!"
+          echo "=============================================="

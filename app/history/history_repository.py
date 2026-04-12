@@ -115,7 +115,7 @@ class HistoryRepository:
             (ticker, unit_price, currency, now)
         )
 
-    def insert_stock_quote_us(self, ticker: str, unit_price: float, currency: str = "USD") -> None:
+    def insert_us_stock_quote(self, ticker: str, unit_price: float, currency: str = "USD") -> None:
         """Insert a new US stock quote into history."""
         now = datetime.now(timezone.utc)
         self._execute(
@@ -171,7 +171,7 @@ class HistoryRepository:
             (ticker,)
         )
 
-    def get_latest_stock_quote_us(self, ticker: str) -> Optional[dict]:
+    def get_latest_us_stock_quote(self, ticker: str) -> Optional[dict]:
         """Get the latest US stock quote."""
         return self._execute_one(
             '''SELECT ticker, unit_price, currency, recorded_at 
@@ -204,7 +204,7 @@ class HistoryRepository:
             (currency_pair,)
         )
 
-    def get_latest_curves(self) -> Optional[dict]:
+    def get_latest_curve(self) -> Optional[dict]:
         """Get the latest curves data."""
         return self._execute_one(
             '''SELECT pre_curve, ipca_curve, selic_rate, lft_vna, recorded_at 
@@ -223,27 +223,16 @@ class HistoryRepository:
         )
 
     def get(self, key: str) -> Optional[dict]:
-        """Get latest data for a specific key (legacy compatibility)."""
-        if key == "curves":
-            return self.get_latest_curves()
-        elif key == "inflation":
+        """Get latest data for a specific key."""
+        if key == HISTORY_KEYS["curves"]:
+            return self.get_latest_curve()
+        elif key == HISTORY_KEYS["inflation"]:
             return self.get_latest_inflation()
         return None
 
-    def set(self, key: str, value: Any) -> None:
-        """Set data for a specific key (legacy compatibility - not used in historical mode)."""
-        pass
-
-    def get_all(self) -> dict:
-        """Get all latest data (legacy compatibility)."""
-        return {
-            "curves": self.get_latest_curves(),
-            "inflation": self.get_latest_inflation(),
-        }
-
     def get_updated_at(self) -> Optional[str]:
         """Get the updated_at timestamp (from latest curves)."""
-        curves = self.get_latest_curves()
+        curves = self.get_latest_curve()
         if curves and curves.get("recorded_at"):
             return curves["recorded_at"].isoformat()
         return None

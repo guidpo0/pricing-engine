@@ -8,8 +8,15 @@ def clear_cache():
     yield
     _quote_cache.clear()
 
+@pytest.fixture(autouse=True)
+def mock_history_repository():
+    with patch("app.services.currency_service.history_repository") as mock_repo:
+        mock_repo.get_latest_currency_quote.return_value = None
+        mock_repo.insert_currency_quote.return_value = None
+        yield mock_repo
+
 @pytest.mark.asyncio
-async def test_get_currency_quote_success():
+async def test_get_currency_quote_success(mock_history_repository):
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
@@ -41,11 +48,17 @@ async def test_get_currency_quote_from_cache():
     assert result["price"] == 5.5020
 
 @pytest.mark.asyncio
-async def test_get_currency_quote_rate_limit_fallback():
-    _set_in_cache("USD-BRL", 5.4000)
+async def test_get_currency_quote_rate_limit_fallback(mock_history_repository):
+    from datetime import datetime, timezone
     
-    # Simulate cache expiration
-    _quote_cache["USD-BRL"]["expires_at"] = 0 
+    _set_in_cache("USD-BRL", 5.4000)
+    _quote_cache["USD-BRL"]["expires_at"] = 0
+    
+    mock_history_repository.get_latest_currency_quote.return_value = {
+        "currency_pair": "USD-BRL",
+        "unit_price": 5.3500,
+        "recorded_at": datetime.now(timezone.utc)
+    }
     
     mock_response = MagicMock()
     mock_response.status_code = 429
@@ -54,14 +67,14 @@ async def test_get_currency_quote_rate_limit_fallback():
         with patch("app.services.currency_service.add_currency_pair"):
             result = await get_currency_quote("USD", "BRL")
             
-    assert result["price"] == 5.4000 # Returned from fallback
+    assert result["price"] == 5.3500
 
 @pytest.mark.asyncio
-async def test_get_currency_quote_rate_limit_no_fallback():
+async def test_get_currency_quote_rate_limit_no_fallback(mock_history_repository):
     mock_response = MagicMock()
     mock_response.status_code = 429
     
     with patch("httpx.AsyncClient.get", return_value=mock_response):
         with patch("app.services.currency_service.add_currency_pair"):
-            with pytest.raises(ValueError, match="Rate limit exceeded for USD-BRL on first fetch \\(no cache available\\). Try again later."):
+            with pytest.raises(ValueError, match=r"Rate limit exceeded for USD-BRL on first fetch \(no cache available\)\. Try again later\."):
                 await get_currency_quote("USD", "BRL")

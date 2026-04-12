@@ -8,8 +8,15 @@ def clear_cache():
     yield
     _quote_cache.clear()
 
+@pytest.fixture(autouse=True)
+def mock_history_repository():
+    with patch("app.services.market_service.history_repository") as mock_repo:
+        mock_repo.get_latest_stock_quote.return_value = None
+        mock_repo.insert_stock_quote.return_value = None
+        yield mock_repo
+
 @pytest.mark.asyncio
-async def test_get_market_quote_success():
+async def test_get_market_quote_success(mock_history_repository):
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
@@ -46,8 +53,7 @@ async def test_get_market_quote_not_found():
                 await get_market_quote("INVALID")
 
 @pytest.mark.asyncio
-async def test_get_market_quote_retry_success(monkeypatch):
-    # Shorten sleep for testing
+async def test_get_market_quote_retry_success(monkeypatch, mock_history_repository):
     import app.services.market_service as ms
     async def mock_sleep(x):
         pass

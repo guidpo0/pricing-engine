@@ -1,51 +1,67 @@
 # Jobs e Atualização de Dados
 
-Um dos pontos mais críticos do sistema é não depender de requisições lentas em tempo real ("*on-the-fly*") para serviços externos na hora de precificar um ativo.
+A engine **não** realiza requisições lentas em tempo real para serviços externos na hora de precificar um ativo.
 
-Para garantir **latência de milissegundos** em todos os endpoints, os dados de mercado necessários são mantidos na RAM através de um cache local, que é constantemente atualizado em segundo plano.
-
----
-
-## Ciclo de Vida do Scheduler
-
-A aplicação utiliza a biblioteca `APScheduler` com o executor `AsyncIOScheduler`. Ele foi escolhido por ser nativo do `asyncio` e não bloquear o Event Loop do FastAPI.
-
-1. **Startup (Lifespan):** Durante a inicialização do Uvicorn, o FastAPI dispara os eventos de `startup`. Neste momento, a engine realiza uma primeira busca nas APIs externas (**ANBIMA**, **Banco Central**) de forma concorrente via `asyncio.gather`.
-
-   > **E se a API externa falhar no momento do boot?**
-   > Para garantir que a engine *nunca* deixe de subir por instabilidades em servidores do governo/ANBIMA, existem dados de fallback (`_FALLBACK_PRE_CURVE`, `_FALLBACK_LFT_VNA`, etc.) definidos nos arquivos de serviço. O sistema registra um *Warning*, carrega esses valores na RAM e sobe normalmente.
-
-2. **Escalonamento:** Após popular a RAM, o `APScheduler` entra em ação, rodando em background. **Nas horas programadas, ele tenta novamente as APIs externas.** Quando o serviço do governo normalizar, substitui silenciosa e automaticamente o cache.
-
-3. **Shutdown (Lifespan):** O encerramento limpo da aplicação sinaliza o Scheduler para parar graciosamente.
+Para garantir **latência de milissegundos**, os dados de mercado necessários são mantidos em cache na RAM.
 
 ---
 
-## Os Jobs
+## Arquitetura de Dados
 
-O arquivo `app/jobs/update_market_data.py` declara **três** rotinas diárias:
+### 1. Startup (Lifespan)
 
-### 1. Curvas de Juros (ANBIMA)
-**Frequência:** Todos os dias às 08:00 UTC (configurável via `CURVE_UPDATE_HOUR`).
+Durante a inicialização do Uvicorn, a engine carrega dados em cache do PostgreSQL para a RAM.
 
-Acessa a projeção da ANBIMA (`CZ-down.asp`) para capturar as taxas em múltiplos vértices (Pre e IPCA+). Como títulos podem vencer em *qualquer data* futura, os dados passam por **Interpolação Linear** que gera uma curva contínua em memória a partir da qual descontamos qualquer prazo.
+> **E se não houver dados em cache?**
+> Cada serviço possui constantes de fallback (`_FALLBACK_PRE_CURVE`, `_FALLBACK_LFT_VNA`, etc.) carregadas na RAM. O sistema registra um Warning e sobe normalmente.
 
-### 2. Inflação e VNA IPCA+ (Banco Central — SGS 433)
-**Frequência:** Todos os dias às 09:00 UTC (configurável via `IPCA_UPDATE_HOUR`).
+### 2. Atualizações de Dados
 
-Para títulos IPCA+ (NTN-B e NTN-B Principal), precisamos do **VNA** (Valor Nominal Atualizado), que cresce mensalmente com o IPCA. Este job busca as variações mensais do IPCA via **BCB SGS Série 433** e acumula o VNA base a partir do valor de referência de 1.000.
+As atualizações de dados **não** são realizadas por jobs internos em background. Em vez disso, um **cron job externo separado** (GitHub Actions) chama o endpoint `/investments/update-cache` periodicamente.
 
-### 3. Fator Diário CDI/SELIC (Banco Central — SGS 12)
-**Frequência:** Todos os dias às 08:30 UTC.
+Esta abordagem:
 
-Para o **Tesouro Selic (LFT)** e **CDBs CDI-indexados**, precisamos do VNA SELIC e dos fatores diários do CDI. Este job busca os últimos 20 fatores diários via **BCB SGS Série 12** e os compõe sobre um valor âncora configurável (`LFT_VNA_ANCHOR` no `.env`) para calcular o VNA corrente do LFT com precisão de centavos.
+- Evita rate limiting de APIs externas
+- Mantém a API responsiva durante fetches de dados
+- Permite escalar independentemente atualizações de dados do servidor da API
+
+### 3. Comportamento em Runtime
+
+Em cada requisição, a API:
+
+1. Primeiro tenta usar o cache em memória (mais rápido)
+2. Faz fallback para o histórico do PostgreSQL se o cache em memória estiver obsoloto/ausente
+3. Busca da API externa apenas se não houver dados em cache, e salva no PostgreSQL
+
+---
+
+## O Endpoint `/investments/update-cache`
+
+Este endpoint é chamado pelo cron job externo para atualizar todos os dados de mercado:
+
+```bash
+curl -X POST https://your-api.com/investments/update-cache \
+  -H "X-API-Key: your-token"
+```
+
+Ele atualiza:
+
+- **Curvas de Juros** (ANBIMA)
+- **Inflação/IPCA+ VNA** (Banco Central)
+- **Taxas CDI/SELIC** (Banco Central)
+- **Cotações de Ações** (Brasil, EUA)
+- **Cotações de Criptomoedas**
+- **Taxas de Câmbio**
+
+Todos os dados são salvos no PostgreSQL como registros históricos (INSERT only, nunca UPDATE/DELETE).
 
 ---
 
 ## Monitoramento
 
-| Endpoint | O que informa |
-|---|---|
-| `GET /health` | `using_fallback: true` indica que pelo menos uma API externa falhou |
-| `GET /market/curves` | Curvas atuais em memória + hora da última atualização |
-| `GET /market/vna` | VNA IPCA+ atual + série de inflação em cache |
+| Endpoint                          | O que informa                                                       |
+| --------------------------------- | ------------------------------------------------------------------- |
+| `GET /health`                     | `using_fallback: true` indica que pelo menos uma API externa falhou |
+| `GET /market/curves`              | Curvas atuais em memória + hora da última atualização               |
+| `GET /market/vna`                 | VNA IPCA+ atual + série de inflação em cache                        |
+| `GET /investments/history-status` | Timestamp da última atualização de dados do PostgreSQL              |
