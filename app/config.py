@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     coin_market_base_url: str = "https://pro-api.coinmarketcap.com"
     coin_market_api_token: str = ""
     awesome_api_base_url: str = "https://economia.awesomeapi.com.br"
+    awesome_api_key: str = ""
     http_timeout: int = 30
 
     # LFT (Tesouro Selic) VNA anchor
