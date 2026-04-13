@@ -26,8 +26,17 @@ def client():
 # ---------------------------------------------------------------------------
 
 class TestHealthEndpoint:
-    def test_health_ok(self, client):
+    def test_health_liveness(self, client):
+        """Liveness probe - should return OK when service is running."""
         response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert "curves_last_updated" not in data
+
+    def test_health_readiness(self, client):
+        """Readiness probe - should return OK when service has data."""
+        response = client.get("/health/ready")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
