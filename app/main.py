@@ -291,12 +291,23 @@ async def get_readme(
 
 @app.get(
     "/health",
-    summary="Health check",
+    summary="Health check (liveness probe)",
     tags=["System"],
     status_code=status.HTTP_200_OK,
 )
 async def health_check() -> dict:
     """Liveness probe — returns OK when the service is running."""
+    return {"status": "ok"}
+
+
+@app.get(
+    "/health/ready",
+    summary="Readiness check",
+    tags=["System"],
+    status_code=status.HTTP_200_OK,
+)
+async def readiness_check() -> dict:
+    """Readiness probe — returns OK when the service is ready with data."""
     curve_info = curve_service.get_cache_info()
     inflation_info = inflation_service.get_cache_info()
     return {
