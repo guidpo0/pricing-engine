@@ -222,6 +222,19 @@ class HistoryRepository:
                LIMIT 1'''
         )
 
+    def get_currency_history(self, currency_pair: str, days: int = 30) -> list[dict]:
+        """Get currency quote history for the last N days."""
+        result = self._execute(
+            '''SELECT currency_pair, unit_price, recorded_at 
+               FROM currency_quotes_history 
+               WHERE currency_pair = %s 
+               ORDER BY recorded_at DESC 
+               LIMIT %s''',
+            (currency_pair, days),
+            fetch=True
+        )
+        return result if result else []
+
     def get(self, key: str) -> Optional[dict]:
         """Get latest data for a specific key."""
         if key == HISTORY_KEYS["curves"]:

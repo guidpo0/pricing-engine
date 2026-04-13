@@ -16,3 +16,13 @@ class TrackedTickersResponse(BaseModel):
     crypto_slugs: list[str] = Field(default_factory=list, description="List of all Crypto slugs currently tracked")
     currencies: list[str] = Field(default_factory=list, description="List of all Currency pairs currently tracked")
 
+class CurrencyHistoryItem(BaseModel):
+    date: datetime = Field(..., description="Date of the quote")
+    price: float = Field(..., description="Exchange rate on this date")
+    change: Optional[float] = Field(default=None, description="Percentage change from previous day")
+
+class CurrencyHistoryResponse(BaseModel):
+    currency_pair: str = Field(..., description="Currency pair (e.g. USD-BRL)")
+    history: list[CurrencyHistoryItem] = Field(default_factory=list, description="Historical quotes")
+    variation_30_days: Optional[float] = Field(default=None, description="Total variation percentage over the period")
+
