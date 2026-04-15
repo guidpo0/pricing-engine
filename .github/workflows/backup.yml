@@ -1,0 +1,141 @@
+name: PostgreSQL Backup to Google Drive
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set environment variables
+        run: |
+          echo "BACKUP_DIR=${{ runner.temp }}/backups" >> $GITHUB_ENV
+
+      - name: Install PostgreSQL Client 17
+        run: |
+          echo "=== Installing PostgreSQL Client 17 ==="
+          
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates gnupg
+          
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+          
+          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          
+          /usr/lib/postgresql/17/bin/pg_dump --version
+
+      - name: Install gzip and curl
+        run: |
+          echo "=== Installing gzip and curl ==="
+          sudo apt-get update
+          sudo apt-get install -y gzip curl
+
+      - name: Create backup directory
+        run: mkdir -p "${{ env.BACKUP_DIR }}"
+
+      - name: Execute pg_dump and compress
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "=== Executing pg_dump and gzip compression ==="
+          set -o pipefail
+          cd "${{ env.BACKUP_DIR }}"
+          
+          FILENAME="backup-$(date +%Y-%m-%d).sql.gz"
+          echo "Creating backup: $FILENAME"
+          
+          /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" | gzip > "$FILENAME"
+          
+          if [ ! -f "$FILENAME" ]; then
+            echo "ERROR: Backup file was not created!"
+            exit 1
+          fi
+          
+          if [ ! -s "$FILENAME" ]; then
+            echo "ERROR: Backup file is empty!"
+            rm -f "$FILENAME"
+            exit 1
+          fi
+          
+          echo "Backup created successfully!"
+          ls -lh "$FILENAME"
+
+      - name: Install rclone
+        run: |
+          echo "=== Installing rclone ==="
+          curl -sO https://downloads.rclone.org/rclone-current-linux-amd64.zip
+          unzip rclone-current-linux-amd64.zip
+          sudo cp rclone-*-linux-amd64/rclone /usr/local/bin/
+          rm -rf rclone-*-linux-amd64 rclone-current-linux-amd64.zip
+          rclone version
+
+      - name: Configure rclone with OAuth
+        env:
+          GDRIVE_RCLONE_CONFIG: ${{ secrets.GDRIVE_RCLONE_CONFIG }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          echo "=== Configuring rclone with OAuth ==="
+          
+          mkdir -p ~/.config/rclone
+          
+          echo "$GDRIVE_RCLONE_CONFIG" > ~/.config/rclone/rclone.conf
+          
+          echo "rclone config created:"
+          cat ~/.config/rclone/rclone.conf
+
+      - name: Upload backup to Google Drive
+        env:
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          echo "=== Uploading backup to Google Drive ==="
+          
+          BACKUP_FILE="${{ env.BACKUP_DIR }}/backup-$(date +%Y-%m-%d).sql.gz"
+          
+          echo "File to upload: $BACKUP_FILE"
+          echo "Destination folder ID: $GDRIVE_FOLDER_ID"
+          
+          rclone copy "$BACKUP_FILE" "gdrive:/" --drive-root-folder-id "$GDRIVE_FOLDER_ID" -v
+          
+          echo "=== Verifying upload ==="
+          rclone lsf "gdrive:/" --drive-root-folder-id "$GDRIVE_FOLDER_ID" --files-only
+          
+          echo "=== Upload completed ==="
+
+      - name: Clean up old backups (keep last 30 days)
+        env:
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          echo "=== Cleaning up backups older than 30 days ==="
+          
+          echo "Files older than 30 days (will be deleted):"
+          rclone lsf "gdrive:/" --drive-root-folder-id "$GDRIVE_FOLDER_ID" --files-only --min-age 30d
+          
+          rclone delete "gdrive:/" --drive-root-folder-id "$GDRIVE_FOLDER_ID" --min-age 30d --verbose
+          
+          echo "=== Cleanup completed ==="
+
+      - name: Verify backup in Google Drive
+        env:
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          echo "=== Verifying backups in Google Drive ==="
+          rclone lsf "gdrive:/" --drive-root-folder-id "$GDRIVE_FOLDER_ID" --files-only
+          echo "=== Verification completed ==="
+
+      - name: Cleanup local temporary files
+        run: |
+          echo "=== Cleaning up local temporary files ==="
+          rm -rf "${{ env.BACKUP_DIR }}"
+          echo "=== Local cleanup completed ==="
