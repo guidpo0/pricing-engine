@@ -7,6 +7,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 import markdown
 from pathlib import Path
@@ -73,6 +74,15 @@ app = FastAPI(
 
 # Add logging middleware
 app.add_middleware(LoggingMiddleware)
+
+# Add CORS middleware (allow all origins for preflight)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ---------------------------------------------------------------------------
 # Routers & Unprotected Endpoints
@@ -300,6 +310,17 @@ async def health_check() -> dict:
     return {"status": "ok"}
 
 
+@app.options(
+    "/health",
+    summary="Health check options",
+    tags=["System"],
+    status_code=status.HTTP_200_OK,
+)
+async def health_check_options() -> dict:
+    """Options for health check (CORS preflight)."""
+    return {"status": "ok"}
+
+
 @app.get(
     "/health/ready",
     summary="Readiness check",
@@ -312,11 +333,20 @@ async def readiness_check() -> dict:
     inflation_info = inflation_service.get_cache_info()
     return {
         "status": "ok",
-        "curves_last_updated": curve_info["last_updated"],
-        "vna_last_updated": inflation_info["last_updated"],
-        "curves_using_fallback": curve_info["using_fallback"],
-        "vna_using_fallback": inflation_info["using_fallback"],
+        "curve_cache": curve_info,
+        "inflation_cache": inflation_info,
     }
+
+
+@app.options(
+    "/health/ready",
+    summary="Health ready options",
+    tags=["System"],
+    status_code=status.HTTP_200_OK,
+)
+async def health_ready_options() -> dict:
+    """Options for health ready check (CORS preflight)."""
+    return {"status": "ok"}
 
 
 # ---------------------------------------------------------------------------
