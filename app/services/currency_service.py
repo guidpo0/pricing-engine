@@ -129,3 +129,58 @@ async def get_currency_quote(from_currency: str, to_currency: str) -> dict:
                     raise ValueError(f"Network error fetching quote for currency pair {pair}: {str(e)}") from e
 
     raise ValueError(f"Unexpected error fetching quote for currency pair {pair}")
+
+
+async def get_currency_quote_by_date(from_currency: str, to_currency: str, date: str) -> dict:
+    """
+    Fetch currency quote for a specific date.
+    First checks database, then external API, then saves to database.
+    """
+    from_currency = from_currency.upper()
+    to_currency = to_currency.upper()
+    
+    pair = f"{from_currency}-{to_currency}"
+    add_currency_pair(pair)
+    
+    db_quote = history_repository.get_currency_quote_by_date(pair, date)
+    if db_quote:
+        return {
+            "price": float(db_quote["unit_price"]),
+            "updated_at": db_quote["recorded_at"]
+        }
+    
+    date_formatted = date.replace("-", "")
+    
+    url = f"{settings.awesome_api_base_url}/json/daily/{pair}/1?start_date={date_formatted}&end_date={date_formatted}"
+    if settings.awesome_api_key:
+        url = f"{url}&token={settings.awesome_api_key}"
+    logger.info("Fetching currency quote by date from: %s", url)
+    
+    async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
+        try:
+            response = await client.get(url)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if isinstance(data, list) and len(data) > 0:
+                    quote_data = data[0]
+                    price = float(quote_data.get("bid") or quote_data.get("close") or 0)
+                    if price > 0:
+                        _set_in_cache(pair, price)
+                        history_repository.insert_currency_quote(pair, price)
+                        return {
+                            "price": price,
+                            "updated_at": _quote_cache[pair]["updated_at"]
+                        }
+                raise ValueError(f"No quote found for {pair} on {date}")
+            
+            elif response.status_code == 404:
+                raise ValueError(f"Currency pair {pair} not found for date {date}")
+            else:
+                response.raise_for_status()
+        
+        except httpx.RequestError as e:
+            raise ValueError(f"Network error fetching quote for {pair} on {date}: {str(e)}") from e
+    
+    raise ValueError(f"Unexpected error fetching quote for {pair} on {date}")

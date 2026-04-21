@@ -204,6 +204,19 @@ class HistoryRepository:
             (currency_pair,)
         )
 
+    def get_currency_quote_by_date(self, currency_pair: str, date: str) -> Optional[dict]:
+        """Get currency quote for a specific date."""
+        date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+        return self._execute_one(
+            '''SELECT currency_pair, unit_price, recorded_at 
+               FROM currency_quotes_history 
+               WHERE currency_pair = %s 
+                 AND DATE(recorded_at) = %s 
+               ORDER BY recorded_at DESC 
+               LIMIT 1''',
+            (currency_pair, date_obj)
+        )
+
     def get_latest_curve(self) -> Optional[dict]:
         """Get the latest curves data."""
         return self._execute_one(

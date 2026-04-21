@@ -319,35 +319,57 @@ async def get_crypto_quote(
 async def get_currency_quote(
     from_currency: str,
     to_currency: str,
-    quantity: float | None = Query(None, description="Optional quantity to convert")
+    quantity: float | None = Query(None, description="Optional quantity to convert"),
+    date: str | None = Query(None, description="Optional date (YYYY-MM-DD) for historical quote")
 ) -> MarketQuoteResponse:
     pair = f"{from_currency.upper()}-{to_currency.upper()}"
     
-    # Try to get from database (latest historical record)
-    db_quote = history_repository.get_latest_currency_quote(pair)
-    
-    if db_quote:
-        quote_data = {
-            "price": float(db_quote["unit_price"]),
-            "updated_at": db_quote["recorded_at"]
-        }
+    if date:
+        db_quote = history_repository.get_currency_quote_by_date(pair, date)
+        
+        if db_quote:
+            quote_data = {
+                "price": float(db_quote["unit_price"]),
+                "updated_at": db_quote["recorded_at"]
+            }
+        else:
+            try:
+                quote_data = await currency_service.get_currency_quote_by_date(from_currency, to_currency, date)
+                history_repository.insert_currency_quote(pair, quote_data["price"])
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
+                    detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
+                )
+            except Exception as exc:
+                logger.exception("Error fetching currency quote for %s-%s on %s", from_currency, to_currency, date)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+                )
     else:
-        # If no historical data, fetch from external API
-        try:
-            quote_data = await currency_service.get_currency_quote(from_currency, to_currency)
-            # Save to database for future requests
-            history_repository.insert_currency_quote(pair, quote_data["price"])
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
-                detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
-            )
-        except Exception as exc:
-            logger.exception("Unexpected error fetching currency quote for %s-%s", from_currency, to_currency)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
-            )
+        db_quote = history_repository.get_latest_currency_quote(pair)
+        
+        if db_quote:
+            quote_data = {
+                "price": float(db_quote["unit_price"]),
+                "updated_at": db_quote["recorded_at"]
+            }
+        else:
+            try:
+                quote_data = await currency_service.get_currency_quote(from_currency, to_currency)
+                history_repository.insert_currency_quote(pair, quote_data["price"])
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
+                    detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
+                )
+            except Exception as exc:
+                logger.exception("Unexpected error fetching currency quote for %s-%s", from_currency, to_currency)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+                )
 
     response = MarketQuoteResponse(
         ticker=pair,
