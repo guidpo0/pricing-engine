@@ -251,12 +251,12 @@ def calculate_cdb(request: CDBValueRequest, ref: date | None = None) -> CDBResul
 
     Args:
         request: Validated CDB value request.
-        ref:     Valuation date (defaults to today).
+        ref:     Valuation date (defaults to calculation_date or today).
 
     Returns:
         CDBResult with the mark-to-model value.
     """
-    ref = ref or date.today()
+    ref = ref or request.calculation_date or date.today()
 
     # Cap ref at maturity — CDB stops accruing after maturity
     is_matured = ref > request.maturity_date

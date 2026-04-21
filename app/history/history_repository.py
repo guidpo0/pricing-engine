@@ -193,6 +193,45 @@ class HistoryRepository:
             (slug,)
         )
 
+    def get_stock_quote_by_date(self, ticker: str, date: str) -> Optional[dict]:
+        """Get stock quote for a specific date or the latest before that date."""
+        date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+        return self._execute_one(
+            '''SELECT ticker, unit_price, currency, recorded_at 
+               FROM stock_quotes_history 
+               WHERE ticker = %s 
+                 AND DATE(recorded_at) <= %s 
+               ORDER BY recorded_at DESC 
+               LIMIT 1''',
+            (ticker, date_obj)
+        )
+
+    def get_us_stock_quote_by_date(self, ticker: str, date: str) -> Optional[dict]:
+        """Get US stock quote for a specific date or the latest before that date."""
+        date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+        return self._execute_one(
+            '''SELECT ticker, unit_price, currency, recorded_at 
+               FROM stock_quotes_us_history 
+               WHERE ticker = %s 
+                 AND DATE(recorded_at) <= %s 
+               ORDER BY recorded_at DESC 
+               LIMIT 1''',
+            (ticker, date_obj)
+        )
+
+    def get_crypto_quote_by_date(self, slug: str, date: str) -> Optional[dict]:
+        """Get crypto quote for a specific date or the latest before that date."""
+        date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+        return self._execute_one(
+            '''SELECT slug, unit_price, currency, recorded_at 
+               FROM crypto_quotes_history 
+               WHERE slug = %s 
+                 AND DATE(recorded_at) <= %s 
+               ORDER BY recorded_at DESC 
+               LIMIT 1''',
+            (slug, date_obj)
+        )
+
     def get_latest_currency_quote(self, currency_pair: str) -> Optional[dict]:
         """Get the latest currency quote."""
         return self._execute_one(

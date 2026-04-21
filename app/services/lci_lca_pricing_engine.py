@@ -32,12 +32,12 @@ def calculate_lci_lca(request: LCILCAValueRequest, ref: date | None = None) -> L
 
     Args:
         request: Validated LCI/LCA value request.
-        ref:     Valuation date (defaults to today).
+        ref:     Valuation date (defaults to calculation_date or today).
 
     Returns:
         LCILCAValueResponse with the mark-to-model value and redeemability status.
     """
-    ref = ref or date.today()
+    ref = ref or request.calculation_date or date.today()
 
     # Cap ref at maturity
     effective_ref = min(ref, request.maturity_date)

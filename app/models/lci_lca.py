@@ -65,12 +65,17 @@ class LCILCAValueRequest(BaseModel):
         description="Grace period (carência) in days",
         examples=[90],
     )
+    calculation_date: date | None = Field(
+        None,
+        description="Optional calculation date (defaults to today). Use for historical valuations.",
+    )
 
     @model_validator(mode="after")
     def validate_dates(self) -> "LCILCAValueRequest":
+        effective_date = self.calculation_date or date.today()
         if self.purchase_date >= self.maturity_date:
             raise ValueError("maturity_date must be after purchase_date")
-        if self.purchase_date > date.today():
+        if self.purchase_date > effective_date:
             raise ValueError("purchase_date cannot be in the future")
         return self
 

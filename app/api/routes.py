@@ -176,14 +176,23 @@ async def get_tracked_tickers() -> TrackedTickersResponse:
 )
 async def get_market_quote(
     ticker: str,
-    quantity: float | None = Query(None, description="Optional quantity for portfolio valuation")
+    quantity: float | None = Query(None, description="Optional quantity for portfolio valuation"),
+    date: str | None = Query(None, description="Optional date (YYYY-MM-DD) to get historical quote"),
 ) -> MarketQuoteResponse:
     """
     Get the real-time market quote for a Brazilian stock or real estate fund.
     First tries to get from database, if not available fetches from external API.
+    
+    If 'date' is provided, tries to get the quote for that specific date.
+    If not found in database, fetches from external API and saves to database.
     """
-    # Try to get from database (latest historical record)
-    db_quote = history_repository.get_latest_stock_quote(ticker.upper())
+    db_quote = None
+    
+    if date:
+        db_quote = history_repository.get_stock_quote_by_date(ticker.upper(), date)
+    
+    if not db_quote:
+        db_quote = history_repository.get_latest_stock_quote(ticker.upper())
     
     if db_quote:
         quote_data = {
@@ -191,10 +200,8 @@ async def get_market_quote(
             "updated_at": db_quote["recorded_at"]
         }
     else:
-        # If no historical data, fetch from external API
         try:
             quote_data = await market_service.get_market_quote(ticker)
-            # Save to database for future requests
             history_repository.insert_stock_quote(ticker.upper(), quote_data["price"], "BRL")
         except ValueError as exc:
             raise HTTPException(
@@ -228,9 +235,16 @@ async def get_market_quote(
 )
 async def get_us_market_quote(
     ticker: str,
-    quantity: float | None = Query(None, description="Optional quantity for portfolio valuation")
+    quantity: float | None = Query(None, description="Optional quantity for portfolio valuation"),
+    date: str | None = Query(None, description="Optional date (YYYY-MM-DD) to get historical quote"),
 ) -> MarketQuoteResponse:
-    db_quote = history_repository.get_latest_us_stock_quote(ticker.upper())
+    db_quote = None
+    
+    if date:
+        db_quote = history_repository.get_us_stock_quote_by_date(ticker.upper(), date)
+    
+    if not db_quote:
+        db_quote = history_repository.get_latest_us_stock_quote(ticker.upper())
     
     if db_quote:
         quote_data = {
@@ -273,9 +287,16 @@ async def get_us_market_quote(
 )
 async def get_crypto_quote(
     slug: str,
-    quantity: float | None = Query(None, description="Optional quantity for portfolio valuation")
+    quantity: float | None = Query(None, description="Optional quantity for portfolio valuation"),
+    date: str | None = Query(None, description="Optional date (YYYY-MM-DD) to get historical quote"),
 ) -> MarketQuoteResponse:
-    db_quote = history_repository.get_latest_crypto_quote(slug.upper())
+    db_quote = None
+    
+    if date:
+        db_quote = history_repository.get_crypto_quote_by_date(slug.upper(), date)
+    
+    if not db_quote:
+        db_quote = history_repository.get_latest_crypto_quote(slug.upper())
     
     if db_quote:
         quote_data = {
