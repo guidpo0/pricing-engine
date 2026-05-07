@@ -216,6 +216,7 @@ async def get_market_quote_by_date(ticker: str, date: str) -> dict:
         for attempt in range(MAX_RETRIES):
             try:
                 async with _brapi_lock:
+                    global _last_request_time
                     now = asyncio.get_event_loop().time()
                     time_since_last = now - _last_request_time
                     if time_since_last < MIN_REQUEST_INTERVAL_SECONDS:
