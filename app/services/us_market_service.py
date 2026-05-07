@@ -119,3 +119,72 @@ async def get_us_market_quote(ticker: str) -> dict:
                     raise ValueError(f"Network error fetching quote for US ticker {ticker}: {str(e)}") from e
 
     raise ValueError(f"Unexpected error fetching quote for US ticker {ticker}")
+
+
+async def get_us_market_quote_by_date(ticker: str, date: str) -> dict:
+    """
+    Fetch historical market quote for a US ticker from TwelveData for a specific date.
+    Uses the time_series endpoint with start_date and end_date.
+    """
+    ticker = ticker.upper()
+
+    add_ticker_us(ticker)
+
+    url = f"{settings.twelve_data_base_url}/time_series"
+    params: dict[str, Any] = {
+        "symbol": ticker,
+        "interval": "1day",
+        "start_date": date,
+        "end_date": date,
+        "apikey": settings.twelve_data_api_token,
+    }
+
+    async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = await client.get(url, params=params)
+                data = response.json()
+
+                if response.status_code == 200 and data.get("status") == "ok":
+                    values = data.get("values", [])
+                    if not values:
+                        raise ValueError(f"No historical data found for US ticker {ticker} on {date}")
+
+                    price = float(values[0]["close"])
+                    recorded_at = values[0].get("datetime", date)
+
+                    logger.info("Historical quote for US %s on %s: %.2f", ticker, date, price)
+                    return {
+                        "price": price,
+                        "updated_at": recorded_at
+                    }
+
+                elif response.status_code == 429 or (response.status_code == 200 and data.get("code") == 429):
+                    logger.warning("Rate limit (429) for US ticker %s (historical).", ticker)
+                    fallback = _get_fallback_cache(ticker)
+                    if fallback is not None:
+                        return {"price": fallback, "updated_at": _quote_cache[ticker]["updated_at"]}
+                    raise ValueError(f"Rate limit exceeded for {ticker} (historical, no cache).")
+
+                elif response.status_code >= 500:
+                    logger.warning("Attempt %d/%d failed for %s (historical). Status %d. Retrying...",
+                                   attempt + 1, MAX_RETRIES, ticker, response.status_code)
+                    if attempt < MAX_RETRIES - 1:
+                        await asyncio.sleep(2 ** attempt)
+                    else:
+                        raise ValueError(f"Failed to fetch historical quote for {ticker} after {MAX_RETRIES} attempts. Status: {response.status_code}")
+
+                elif response.status_code in (400, 404) or (response.status_code == 200 and data.get("status") == "error"):
+                    raise ValueError(f"US Ticker {ticker} not found or invalid: {data.get('message', '')}")
+
+                else:
+                    response.raise_for_status()
+
+            except httpx.RequestError as e:
+                logger.error("Request error for %s (historical) on attempt %d: %s", ticker, attempt + 1, e)
+                if attempt < MAX_RETRIES - 1:
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    raise ValueError(f"Network error fetching historical quote for US ticker {ticker}: {str(e)}") from e
+
+    raise ValueError(f"Unexpected error fetching historical quote for US ticker {ticker}")

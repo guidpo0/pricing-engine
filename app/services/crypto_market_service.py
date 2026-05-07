@@ -125,3 +125,90 @@ async def get_crypto_quote(slug: str) -> dict:
                     raise ValueError(f"Network error fetching quote for crypto slug {slug}: {str(e)}") from e
 
     raise ValueError(f"Unexpected error fetching quote for crypto slug {slug}")
+
+
+async def get_crypto_quote_by_date(slug: str, date: str) -> dict:
+    """
+    Fetch historical market quote for a crypto slug from CoinMarketCap for a specific date.
+    Uses the v3 quotes/historical endpoint.
+    """
+    slug = slug.lower()
+    add_crypto_slug(slug)
+
+    url = f"{settings.coin_market_base_url}/v3/cryptocurrency/quotes/historical"
+    params: dict[str, Any] = {
+        "symbol": slug.upper(),
+        "time_start": f"{date}T00:00:00Z",
+        "time_end": f"{date}T23:59:59Z",
+        "interval": "daily",
+        "convert": "USD",
+    }
+    headers = {"X-CMC_PRO_API_KEY": settings.coin_market_api_token}
+
+    async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = await client.get(url, params=params, headers=headers)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    cmc_data = data.get("data", [])
+
+                    if not cmc_data:
+                        params.pop("symbol", None)
+                        params["slug"] = slug
+                        response = await client.get(url, params=params, headers=headers)
+                        if response.status_code == 200:
+                            data = response.json()
+                            cmc_data = data.get("data", [])
+                        else:
+                            raise ValueError(f"No historical data found for crypto slug {slug} on {date}")
+
+                    if not cmc_data:
+                        raise ValueError(f"No historical data found for crypto slug {slug} on {date}")
+
+                    quotes = cmc_data[0].get("quotes", [])
+                    if not quotes:
+                        raise ValueError(f"No quotes found for crypto slug {slug} on {date}")
+
+                    last_quote = quotes[-1]
+                    price = float(last_quote["quote"]["USD"]["price"])
+                    timestamp = last_quote.get("timestamp", date)
+
+                    logger.info("Historical quote for crypto %s on %s: %.2f", slug, date, price)
+                    return {
+                        "price": price,
+                        "updated_at": timestamp
+                    }
+
+                elif response.status_code == 429:
+                    logger.warning("Rate limit (429) for crypto slug %s (historical).", slug)
+                    fallback = _get_fallback_cache(slug)
+                    if fallback is not None:
+                        return {"price": fallback, "updated_at": _quote_cache[slug]["updated_at"]}
+                    raise ValueError(f"Rate limit exceeded for {slug} (historical, no cache).")
+
+                elif response.status_code >= 500:
+                    logger.warning("Attempt %d/%d failed for %s (historical). Status %d. Retrying...",
+                                   attempt + 1, MAX_RETRIES, slug, response.status_code)
+                    if attempt < MAX_RETRIES - 1:
+                        await asyncio.sleep(2 ** attempt)
+                    else:
+                        raise ValueError(f"Failed to fetch historical quote for {slug} after {MAX_RETRIES} attempts.")
+
+                elif response.status_code in (400, 404):
+                    data = response.json()
+                    error_msg = data.get("status", {}).get("error_message", "Unknown error")
+                    raise ValueError(f"Crypto slug {slug} not found or invalid: {error_msg}")
+
+                else:
+                    response.raise_for_status()
+
+            except httpx.RequestError as e:
+                logger.error("Request error for %s (historical) on attempt %d: %s", slug, attempt + 1, e)
+                if attempt < MAX_RETRIES - 1:
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    raise ValueError(f"Network error fetching historical quote for crypto slug {slug}: {str(e)}") from e
+
+    raise ValueError(f"Unexpected error fetching historical quote for crypto slug {slug}")

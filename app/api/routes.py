@@ -4,6 +4,7 @@ API routes for the Tesouro Direto pricing service.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query, status, Depends
 
@@ -191,29 +192,49 @@ async def get_market_quote(
     if date:
         db_quote = history_repository.get_stock_quote_by_date(ticker.upper(), date)
     
-    if not db_quote:
-        db_quote = history_repository.get_latest_stock_quote(ticker.upper())
-    
     if db_quote:
         quote_data = {
             "price": float(db_quote["unit_price"]),
             "updated_at": db_quote["recorded_at"]
         }
-    else:
+    elif date:
         try:
-            quote_data = await market_service.get_market_quote(ticker)
-            history_repository.insert_stock_quote(ticker.upper(), quote_data["price"], "BRL")
+            quote_data = await market_service.get_market_quote_by_date(ticker, date)
+            recorded_at = datetime.strptime(date, "%Y-%m-%d")
+            history_repository.insert_stock_quote(ticker.upper(), quote_data["price"], "BRL", recorded_at=recorded_at)
         except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
                 detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
             )
         except Exception as exc:
-            logger.exception("Unexpected error fetching market quote for %s", ticker)
+            logger.exception("Unexpected error fetching historical market quote for %s", ticker)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+                detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching historical quote.", "code": "INTERNAL_ERROR"},
             )
+    else:
+        db_quote = history_repository.get_latest_stock_quote(ticker.upper())
+        if db_quote:
+            quote_data = {
+                "price": float(db_quote["unit_price"]),
+                "updated_at": db_quote["recorded_at"]
+            }
+        else:
+            try:
+                quote_data = await market_service.get_market_quote(ticker)
+                history_repository.insert_stock_quote(ticker.upper(), quote_data["price"], "BRL")
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
+                    detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
+                )
+            except Exception as exc:
+                logger.exception("Unexpected error fetching market quote for %s", ticker)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+                )
 
     response = MarketQuoteResponse(
         ticker=ticker.upper(),
@@ -243,29 +264,49 @@ async def get_us_market_quote(
     if date:
         db_quote = history_repository.get_us_stock_quote_by_date(ticker.upper(), date)
     
-    if not db_quote:
-        db_quote = history_repository.get_latest_us_stock_quote(ticker.upper())
-    
     if db_quote:
         quote_data = {
             "price": float(db_quote["unit_price"]),
             "updated_at": db_quote["recorded_at"]
         }
-    else:
+    elif date:
         try:
-            quote_data = await us_market_service.get_us_market_quote(ticker)
-            history_repository.insert_us_stock_quote(ticker.upper(), quote_data["price"], "USD")
+            quote_data = await us_market_service.get_us_market_quote_by_date(ticker, date)
+            recorded_at = datetime.strptime(date, "%Y-%m-%d")
+            history_repository.insert_us_stock_quote(ticker.upper(), quote_data["price"], "USD", recorded_at=recorded_at)
         except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
                 detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
             ) from exc
         except Exception as exc:
-            logger.exception("Unexpected error fetching US market quote for %s", ticker)
+            logger.exception("Unexpected error fetching historical US market quote for %s", ticker)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+                detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching historical quote.", "code": "INTERNAL_ERROR"},
             ) from exc
+    else:
+        db_quote = history_repository.get_latest_us_stock_quote(ticker.upper())
+        if db_quote:
+            quote_data = {
+                "price": float(db_quote["unit_price"]),
+                "updated_at": db_quote["recorded_at"]
+            }
+        else:
+            try:
+                quote_data = await us_market_service.get_us_market_quote(ticker)
+                history_repository.insert_us_stock_quote(ticker.upper(), quote_data["price"], "USD")
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
+                    detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
+                ) from exc
+            except Exception as exc:
+                logger.exception("Unexpected error fetching US market quote for %s", ticker)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+                ) from exc
 
     response = MarketQuoteResponse(
         ticker=ticker.upper(),
@@ -295,29 +336,49 @@ async def get_crypto_quote(
     if date:
         db_quote = history_repository.get_crypto_quote_by_date(slug.upper(), date)
     
-    if not db_quote:
-        db_quote = history_repository.get_latest_crypto_quote(slug.upper())
-    
     if db_quote:
         quote_data = {
             "price": float(db_quote["unit_price"]),
             "updated_at": db_quote["recorded_at"]
         }
-    else:
+    elif date:
         try:
-            quote_data = await crypto_market_service.get_crypto_quote(slug)
-            history_repository.insert_crypto_quote(slug.upper(), quote_data["price"], "USD")
+            quote_data = await crypto_market_service.get_crypto_quote_by_date(slug, date)
+            recorded_at = datetime.strptime(date, "%Y-%m-%d")
+            history_repository.insert_crypto_quote(slug.upper(), quote_data["price"], "USD", recorded_at=recorded_at)
         except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
                 detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
             ) from exc
         except Exception as exc:
-            logger.exception("Unexpected error fetching crypto quote for %s", slug)
+            logger.exception("Unexpected error fetching historical crypto quote for %s", slug)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+                detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching historical quote.", "code": "INTERNAL_ERROR"},
             ) from exc
+    else:
+        db_quote = history_repository.get_latest_crypto_quote(slug.upper())
+        if db_quote:
+            quote_data = {
+                "price": float(db_quote["unit_price"]),
+                "updated_at": db_quote["recorded_at"]
+            }
+        else:
+            try:
+                quote_data = await crypto_market_service.get_crypto_quote(slug)
+                history_repository.insert_crypto_quote(slug.upper(), quote_data["price"], "USD")
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
+                    detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
+                ) from exc
+            except Exception as exc:
+                logger.exception("Unexpected error fetching crypto quote for %s", slug)
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching quote.", "code": "INTERNAL_ERROR"},
+                ) from exc
 
     response = MarketQuoteResponse(
         ticker=slug.upper(),

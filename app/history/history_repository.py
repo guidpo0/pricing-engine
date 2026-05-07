@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date as date_type
 from typing import Any, Optional
 
 import psycopg2
@@ -106,27 +106,27 @@ class HistoryRepository:
         finally:
             _return_connection(conn)
 
-    def insert_stock_quote(self, ticker: str, unit_price: float, currency: str = "BRL") -> None:
+    def insert_stock_quote(self, ticker: str, unit_price: float, currency: str = "BRL", recorded_at: datetime | None = None) -> None:
         """Insert a new stock quote into history."""
-        now = datetime.now(timezone.utc)
+        now = recorded_at or datetime.now(timezone.utc)
         self._execute(
             '''INSERT INTO stock_quotes_history (ticker, unit_price, currency, recorded_at) 
                VALUES (%s, %s, %s, %s)''',
             (ticker, unit_price, currency, now)
         )
 
-    def insert_us_stock_quote(self, ticker: str, unit_price: float, currency: str = "USD") -> None:
+    def insert_us_stock_quote(self, ticker: str, unit_price: float, currency: str = "USD", recorded_at: datetime | None = None) -> None:
         """Insert a new US stock quote into history."""
-        now = datetime.now(timezone.utc)
+        now = recorded_at or datetime.now(timezone.utc)
         self._execute(
             '''INSERT INTO stock_quotes_us_history (ticker, unit_price, currency, recorded_at) 
                VALUES (%s, %s, %s, %s)''',
             (ticker, unit_price, currency, now)
         )
 
-    def insert_crypto_quote(self, slug: str, unit_price: float, currency: str = "USD") -> None:
+    def insert_crypto_quote(self, slug: str, unit_price: float, currency: str = "USD", recorded_at: datetime | None = None) -> None:
         """Insert a new crypto quote into history."""
-        now = datetime.now(timezone.utc)
+        now = recorded_at or datetime.now(timezone.utc)
         self._execute(
             '''INSERT INTO crypto_quotes_history (slug, unit_price, currency, recorded_at) 
                VALUES (%s, %s, %s, %s)''',
