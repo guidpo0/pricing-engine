@@ -56,6 +56,7 @@ class CurveCache:
     ipca_curve: list[dict] = field(default_factory=lambda: list(_FALLBACK_IPCA_CURVE))
     selic_rate: float = _FALLBACK_SELIC_RATE
     lft_vna: float = _FALLBACK_LFT_VNA
+    lft_daily_factors: list[dict] = field(default_factory=list)
     last_updated: datetime | None = None
     using_fallback: bool = True
 
@@ -109,7 +110,7 @@ async def _fetch_selic_rate() -> float:
         return rate_pct / 100.0
 
 
-async def _fetch_lft_vna() -> float:
+async def _fetch_lft_vna() -> tuple[float, list[dict]]:
     """
     Compute the current LFT (Tesouro Selic) VNA by projecting the anchor value
     stored in settings forward using recent daily SELIC factors (BCB SGS series 12).
@@ -118,6 +119,10 @@ async def _fetch_lft_vna() -> float:
     The LFT VNA starts at R$ 1,000 on 01/07/2000 and grows by this factor each
     business day. We anchor to a recently known VNA and accumulate only the
     incremental factors since that anchor date to avoid 25-year history downloads.
+
+    Returns:
+        (vna, daily_factors): VNA as of the latest available data, and the
+        raw list of daily factor entries from BCB.
     """
     from datetime import date as _date
 
@@ -125,8 +130,7 @@ async def _fetch_lft_vna() -> float:
     today = _date.today()
 
     if today <= anchor_date:
-        # anchor_date is in the future or today — use anchor directly
-        return settings.lft_vna_anchor
+        return settings.lft_vna_anchor, []
 
     # Fetch daily factors from the day after anchor_date up to today
     start_str = (anchor_date.strftime("%d/%m/%Y"))
@@ -138,15 +142,13 @@ async def _fetch_lft_vna() -> float:
     async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
         resp = await client.get(url)
         if resp.status_code == 404:
-            # 404 from BCB SGS means no data in this date range (e.g., weekends/holidays)
-            return settings.lft_vna_anchor
+            return settings.lft_vna_anchor, []
         resp.raise_for_status()
         data = resp.json()
 
     # Compound anchor VNA with each business day factor AFTER the anchor date
     vna = settings.lft_vna_anchor
     for entry in data:
-        # Parse entry date to skip the anchor date itself
         day, month, year = entry["data"].split("/")
         entry_date = _date(int(year), int(month), int(day))
         if entry_date <= anchor_date:
@@ -154,7 +156,7 @@ async def _fetch_lft_vna() -> float:
         daily_factor = float(entry["valor"].replace(",", ".")) / 100.0
         vna *= (1 + daily_factor)
 
-    return round(vna, 6)
+    return round(vna, 6), data
 
 
 async def _fetch_anbima_curves() -> tuple[list[dict], list[dict]]:
@@ -232,12 +234,13 @@ async def refresh_curves() -> None:
     try:
         pre_curve, ipca_curve = await _fetch_anbima_curves()
         selic_rate = await _fetch_selic_rate()
-        lft_vna = await _fetch_lft_vna()
+        lft_vna, lft_daily_factors = await _fetch_lft_vna()
         _cache = CurveCache(
             pre_curve=pre_curve,
             ipca_curve=ipca_curve,
             selic_rate=selic_rate,
             lft_vna=lft_vna,
+            lft_daily_factors=lft_daily_factors,
             last_updated=datetime.utcnow(),
             using_fallback=False,
         )
@@ -281,6 +284,43 @@ def get_selic_rate() -> float:
 def get_lft_vna() -> float:
     """Return the cached LFT VNA (Valor Nominal Atualizado pela SELIC acumulada)."""
     return _cache.lft_vna
+
+
+def get_lft_vna_at(ref: date) -> float:
+    """
+    Compute the LFT VNA as of a specific reference date using cached daily factors.
+
+    Args:
+        ref: The reference (calculation) date.
+
+    Returns:
+        VNA as of the reference date, or the latest available VNA if the
+        reference date is after all cached factors.
+    """
+    from datetime import date as _date
+
+    anchor_date = _date.fromisoformat(settings.lft_vna_anchor_date)
+
+    if ref <= anchor_date:
+        return settings.lft_vna_anchor
+
+    if not _cache.lft_daily_factors:
+        return _cache.lft_vna
+
+    vna = settings.lft_vna_anchor
+    sorted_entries = sorted(_cache.lft_daily_factors, key=lambda e: e["data"])
+
+    for entry in sorted_entries:
+        day, month, year = entry["data"].split("/")
+        entry_date = _date(int(year), int(month), int(day))
+        if entry_date <= anchor_date:
+            continue
+        if entry_date > ref:
+            break
+        daily_factor = float(entry["valor"].replace(",", ".")) / 100.0
+        vna *= (1 + daily_factor)
+
+    return round(vna, 6)
 
 
 def get_cache_info() -> dict:

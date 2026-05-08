@@ -226,7 +226,8 @@ def price_lft(
     if tenor <= 0:
         raise ValueError("Bond has already matured.")
 
-    vna_selic = float(curve_service.get_lft_vna())
+    today = date.today()
+    vna_selic = float(curve_service.get_lft_vna_at(ref) if ref < today else curve_service.get_lft_vna())
     selic_rate = curve_service.get_selic_rate()
 
     # For spread = 0 (par trading), PU = VNA.

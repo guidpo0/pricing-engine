@@ -95,7 +95,8 @@ async def get_portfolio_value(body: PortfolioValueRequest) -> PortfolioValueResp
     `position_value = pu × quantity`
     """
     try:
-        result = calculate_pu(body.bond_type, body.maturity_date, spread=body.spread)
+        ref = body.calculation_date or date.today()
+        result = calculate_pu(body.bond_type, body.maturity_date, spread=body.spread, ref=ref)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

@@ -58,10 +58,15 @@ class PortfolioValueRequest(BaseModel):
         le=0.05,
         description="Optional spread over benchmark rate",
     )
+    calculation_date: date | None = Field(
+        None,
+        description="Optional calculation date (defaults to today). Use for historical valuations.",
+    )
 
     @model_validator(mode="after")
     def maturity_must_be_future(self) -> "PortfolioValueRequest":
-        if self.maturity_date <= date.today():
+        ref = self.calculation_date or date.today()
+        if self.maturity_date <= ref:
             raise ValueError("maturity_date must be in the future")
         return self
 
