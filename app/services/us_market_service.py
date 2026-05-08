@@ -124,7 +124,7 @@ async def get_us_market_quote(ticker: str) -> dict:
 async def get_us_market_quote_by_date(ticker: str, date: str) -> dict:
     """
     Fetch historical market quote for a US ticker from TwelveData for a specific date.
-    Uses the time_series endpoint with start_date and end_date.
+    Uses the time_series endpoint with the date parameter.
     """
     ticker = ticker.upper()
 
@@ -134,8 +134,7 @@ async def get_us_market_quote_by_date(ticker: str, date: str) -> dict:
     params: dict[str, Any] = {
         "symbol": ticker,
         "interval": "1day",
-        "start_date": date,
-        "end_date": date,
+        "date": date,
         "apikey": settings.twelve_data_api_token,
     }
 
