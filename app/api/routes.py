@@ -17,7 +17,7 @@ from app.models.bond import (
     PortfolioValueResponse,
 )
 from app.models.cdb import CDBValueRequest, CDBValueResponse
-from app.services import curve_service, inflation_service
+from app.services import curve_service, inflation_service, cdb_service
 from app.services.pricing_engine import calculate_pu
 from app.services.cdb_pricing_engine import calculate_cdb
 from app.models.lci_lca import LCILCAValueRequest, LCILCAValueResponse
@@ -167,6 +167,81 @@ async def get_tracked_tickers() -> TrackedTickersResponse:
         crypto_slugs=crypto_slugs,
         currencies=currencies,
     )
+
+
+@router.get(
+    "/market/cdi-factor",
+    summary="Get accumulated CDI factor between two dates",
+    tags=["Market Data"],
+)
+async def get_cdi_factor(
+    start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
+    rate: float = Query(1.0, ge=0.0, description="CDI percentage multiplier (e.g. 1.0 = 100% CDI)"),
+) -> dict:
+    from datetime import date as date_type
+    try:
+        start = date_type.fromisoformat(start_date)
+        end = date_type.fromisoformat(end_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid date format: {exc}")
+
+    if start >= end:
+        raise HTTPException(status_code=400, detail="start_date must be before end_date")
+
+    daily_factors = cdb_service.get_cdi_daily_factors()
+    fallback_factor = cdb_service.get_fallback_daily_factor()
+
+    factor = 1.0
+    business_days = 0
+
+    if not daily_factors:
+        calendar_days = (end - start).days
+        approx_bdays = int(calendar_days * 252 / 365)
+        factor = (1 + fallback_factor * rate) ** approx_bdays
+        business_days = approx_bdays
+        logger.warning("CDI factor using fallback — no live BCB data")
+    else:
+        factor_by_date: dict[str, float] = {}
+        for entry in daily_factors:
+            factor_by_date[entry["data"]] = float(entry["valor"].replace(",", ".")) / 100.0
+
+        available_dates = sorted(factor_by_date.keys())
+        day, month, year = available_dates[0].split("/")
+        earliest_available = date_type(int(year), int(month), int(day))
+
+        if start < earliest_available:
+            pre_days = (min(earliest_available, end) - start).days
+            approx = int(pre_days * 252 / 365)
+            factor *= (1 + fallback_factor * rate) ** approx
+            business_days += approx
+
+        for entry in daily_factors:
+            d, m, y = entry["data"].split("/")
+            entry_date = date_type(int(y), int(m), int(d))
+            if entry_date <= start:
+                continue
+            if entry_date > end:
+                break
+            daily_factor = float(entry["valor"].replace(",", ".")) / 100.0
+            factor *= (1 + daily_factor * rate)
+            business_days += 1
+
+    # Extract the reference CDI annual rate from the latest factor
+    latest_factor = fallback_factor
+    if daily_factors:
+        last = float(daily_factors[-1]["valor"].replace(",", ".")) / 100.0
+        latest_factor = last
+    cdi_annual_rate = round((1 + latest_factor) ** 252 - 1, 6)
+
+    return {
+        "factor": round(factor, 10),
+        "cdi_annual_rate": cdi_annual_rate,
+        "business_days": business_days,
+        "start_date": start_date,
+        "end_date": end_date,
+        "rate": rate,
+    }
 
 
 @router.get(
