@@ -341,23 +341,9 @@ async def get_crypto_quote(
             "price": float(db_quote["unit_price"]),
             "updated_at": db_quote["recorded_at"]
         }
-    elif date:
-        try:
-            quote_data = await crypto_market_service.get_crypto_quote_by_date(slug, date)
-            recorded_at = datetime.strptime(date, "%Y-%m-%d")
-            history_repository.insert_crypto_quote(slug.upper(), quote_data["price"], "USD", recorded_at=recorded_at)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,
-                detail={"error": "MARKET_DATA_ERROR", "detail": str(exc), "code": "MARKET_DATA_ERROR"},
-            ) from exc
-        except Exception as exc:
-            logger.exception("Unexpected error fetching historical crypto quote for %s", slug)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={"error": "INTERNAL_ERROR", "detail": "Unexpected error fetching historical quote.", "code": "INTERNAL_ERROR"},
-            ) from exc
     else:
+        if date:
+            logger.warning("No historical data found for crypto %s on %s. Using latest available quote.", slug, date)
         db_quote = history_repository.get_latest_crypto_quote(slug.upper())
         if db_quote:
             quote_data = {
