@@ -133,9 +133,9 @@ class HistoryRepository:
             (slug, unit_price, currency, now)
         )
 
-    def insert_currency_quote(self, currency_pair: str, unit_price: float) -> None:
+    def insert_currency_quote(self, currency_pair: str, unit_price: float, recorded_at: datetime | None = None) -> None:
         """Insert a new currency quote into history."""
-        now = datetime.now(timezone.utc)
+        now = recorded_at or datetime.now(timezone.utc)
         self._execute(
             '''INSERT INTO currency_quotes_history (currency_pair, unit_price, recorded_at) 
                VALUES (%s, %s, %s)''',

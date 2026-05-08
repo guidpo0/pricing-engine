@@ -478,7 +478,8 @@ async def get_currency_quote(
         else:
             try:
                 quote_data = await currency_service.get_currency_quote_by_date(from_currency, to_currency, date)
-                history_repository.insert_currency_quote(pair, quote_data["price"])
+                recorded_at = datetime.strptime(date, "%Y-%m-%d")
+                history_repository.insert_currency_quote(pair, quote_data["price"], recorded_at=recorded_at)
             except ValueError as exc:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND if "not found" in str(exc).lower() else status.HTTP_502_BAD_GATEWAY,

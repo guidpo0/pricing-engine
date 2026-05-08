@@ -168,10 +168,11 @@ async def get_currency_quote_by_date(from_currency: str, to_currency: str, date:
                     price = float(quote_data.get("bid") or quote_data.get("close") or 0)
                     if price > 0:
                         _set_in_cache(pair, price)
-                        history_repository.insert_currency_quote(pair, price)
+                        recorded_at = datetime.strptime(date, "%Y-%m-%d")
+                        history_repository.insert_currency_quote(pair, price, recorded_at=recorded_at)
                         return {
                             "price": price,
-                            "updated_at": _quote_cache[pair]["updated_at"]
+                            "updated_at": recorded_at,
                         }
                 raise ValueError(f"No quote found for {pair} on {date}")
             
