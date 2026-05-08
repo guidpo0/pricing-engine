@@ -120,6 +120,9 @@ async def _fetch_lft_vna() -> tuple[float, list[dict]]:
     business day. We anchor to a recently known VNA and accumulate only the
     incremental factors since that anchor date to avoid 25-year history downloads.
 
+    Also persists the daily factors to the selic_daily_factors table so
+    historical VNA values can be computed for any past reference date.
+
     Returns:
         (vna, daily_factors): VNA as of the latest available data, and the
         raw list of daily factor entries from BCB.
@@ -155,6 +158,13 @@ async def _fetch_lft_vna() -> tuple[float, list[dict]]:
             continue
         daily_factor = float(entry["valor"].replace(",", ".")) / 100.0
         vna *= (1 + daily_factor)
+
+    # Persist factors to DB for historical queries
+    try:
+        from app.history.selic_repository import upsert_selic_factors_batch
+        upsert_selic_factors_batch(data, anchor_date)
+    except Exception as exc:
+        logger.warning("Failed to persist SELIC daily factors: %s", exc)
 
     return round(vna, 6), data
 
@@ -288,25 +298,65 @@ def get_lft_vna() -> float:
 
 def get_lft_vna_at(ref: date) -> float:
     """
-    Compute the LFT VNA as of a specific reference date using cached daily factors.
+    Compute the LFT VNA as of a specific reference date.
+
+    Reads daily SELIC factors from the selic_daily_factors table (populated
+    by the BCB fetch during refresh_curves). Falls back to the in-memory
+    cache if the DB is not available.
 
     Args:
         ref: The reference (calculation) date.
 
     Returns:
         VNA as of the reference date, or the latest available VNA if the
-        reference date is after all cached factors.
+        reference date is after all stored factors.
     """
     from datetime import date as _date
 
     anchor_date = _date.fromisoformat(settings.lft_vna_anchor_date)
 
     if ref <= anchor_date:
-        logger.debug("get_lft_vna_at ref=%s <= anchor_date=%s returning anchor=%.4f", ref, anchor_date, settings.lft_vna_anchor)
+        logger.info("get_lft_vna_at ref=%s <= anchor_date=%s returning anchor=%.4f", ref, anchor_date, settings.lft_vna_anchor)
         return settings.lft_vna_anchor
 
+    # Prefer DB-stored factors for historical computation
+    db_vna = _compute_vna_from_db(ref, anchor_date)
+    if db_vna is not None:
+        return db_vna
+
+    # Fallback: compute from in-memory cache
+    logger.info("get_lft_vna_at ref=%s DB empty, using in-memory cache", ref)
+    return _compute_vna_from_cache(ref, anchor_date)
+
+
+def _compute_vna_from_db(ref: date, anchor_date: date) -> float | None:
+    """Read SELIC factors from DB and compute VNA up to ref."""
+    try:
+        from app.history.selic_repository import get_selic_factors_up_to
+
+        factors = get_selic_factors_up_to(ref)
+        if not factors:
+            return None
+
+        vna = settings.lft_vna_anchor
+        for entry in factors:
+            vna *= (1 + entry["daily_factor"])
+
+        result = round(vna, 6)
+        logger.info(
+            "get_lft_vna_at ref=%s source=DB factors=%d vna=%.4f cache_vna=%.4f",
+            ref, len(factors), result, _cache.lft_vna,
+        )
+        return result
+    except Exception as exc:
+        logger.warning("Failed to compute VNA from DB: %s", exc)
+        return None
+
+
+def _compute_vna_from_cache(ref: date, anchor_date: date) -> float:
+    """Fallback: compute VNA from in-memory _cache.lft_daily_factors."""
     if not _cache.lft_daily_factors:
-        logger.debug("get_lft_vna_at ref=%s no cached factors, returning latest vna=%.4f", ref, _cache.lft_vna)
+        logger.info("get_lft_vna_at ref=%s no cached factors, returning latest vna=%.4f", ref, _cache.lft_vna)
         return _cache.lft_vna
 
     vna = settings.lft_vna_anchor
@@ -326,8 +376,8 @@ def get_lft_vna_at(ref: date) -> float:
         factors_used += 1
         last_entry_date = entry_date
 
-    logger.debug(
-        "get_lft_vna_at ref=%s anchor=%.4f factors_used=%d last_entry=%s vna=%.4f cache_vna=%.4f",
+    logger.info(
+        "get_lft_vna_at ref=%s source=cache anchor=%.4f factors_used=%d last_entry=%s vna=%.4f cache_vna=%.4f",
         ref, settings.lft_vna_anchor, factors_used, last_entry_date, round(vna, 6), _cache.lft_vna,
     )
     return round(vna, 6)

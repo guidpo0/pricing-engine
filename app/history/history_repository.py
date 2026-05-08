@@ -326,6 +326,7 @@ class HistoryRepository:
         self._execute('DELETE FROM currency_quotes_history')
         self._execute('DELETE FROM curves_history')
         self._execute('DELETE FROM inflation_history')
+        self._execute('DELETE FROM selic_daily_factors')
 
 
 history_repository = HistoryRepository()
