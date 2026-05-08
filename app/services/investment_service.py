@@ -208,8 +208,8 @@ def load_cache_to_memory() -> None:
         if curves_data:
             curve_service._cache.pre_curve = curves_data.get("pre_curve", curve_service._cache.pre_curve)
             curve_service._cache.ipca_curve = curves_data.get("ipca_curve", curve_service._cache.ipca_curve)
-            curve_service._cache.selic_rate = curves_data.get("selic_rate", curve_service._cache.selic_rate)
-            curve_service._cache.lft_vna = curves_data.get("lft_vna", curve_service._cache.lft_vna)
+            curve_service._cache.selic_rate = float(curves_data.get("selic_rate", curve_service._cache.selic_rate))
+            curve_service._cache.lft_vna = float(curves_data.get("lft_vna", curve_service._cache.lft_vna))
             if curves_data.get("last_updated"):
                 from datetime import datetime
                 curve_service._cache.last_updated = datetime.fromisoformat(curves_data["last_updated"])
@@ -218,7 +218,7 @@ def load_cache_to_memory() -> None:
         
         inflation_data = history_repository.get(HISTORY_KEYS["inflation"])
         if inflation_data:
-            inflation_service._cache.vna = inflation_data.get("vna", inflation_service._cache.vna)
+            inflation_service._cache.vna = float(inflation_data.get("vna", inflation_service._cache.vna))
             if inflation_data.get("last_updated"):
                 from datetime import datetime
                 inflation_service._cache.last_updated = datetime.fromisoformat(inflation_data["last_updated"])

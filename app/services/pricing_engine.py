@@ -141,7 +141,7 @@ def price_ntnb_principal(
     if tenor <= 0:
         raise ValueError("Bond has already matured.")
 
-    vna = inflation_service.get_vna()
+    vna = float(inflation_service.get_vna())
     real_rate = curve_service.get_rate(tenor, curve_type="ipca")
     effective_rate = real_rate + spread
 
@@ -174,7 +174,7 @@ def price_ntnb(
         raise ValueError("Bond has already matured or no future coupons.")
 
     tenor = years_to_maturity(maturity, ref)
-    vna = inflation_service.get_vna()
+    vna = float(inflation_service.get_vna())
     real_rate = curve_service.get_rate(tenor, curve_type="ipca")
     effective_rate = real_rate + spread
 
@@ -226,7 +226,7 @@ def price_lft(
     if tenor <= 0:
         raise ValueError("Bond has already matured.")
 
-    vna_selic = curve_service.get_lft_vna()
+    vna_selic = float(curve_service.get_lft_vna())
     selic_rate = curve_service.get_selic_rate()
 
     # For spread = 0 (par trading), PU = VNA.
