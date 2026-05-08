@@ -302,13 +302,17 @@ def get_lft_vna_at(ref: date) -> float:
     anchor_date = _date.fromisoformat(settings.lft_vna_anchor_date)
 
     if ref <= anchor_date:
+        logger.debug("get_lft_vna_at ref=%s <= anchor_date=%s returning anchor=%.4f", ref, anchor_date, settings.lft_vna_anchor)
         return settings.lft_vna_anchor
 
     if not _cache.lft_daily_factors:
+        logger.debug("get_lft_vna_at ref=%s no cached factors, returning latest vna=%.4f", ref, _cache.lft_vna)
         return _cache.lft_vna
 
     vna = settings.lft_vna_anchor
     sorted_entries = sorted(_cache.lft_daily_factors, key=lambda e: e["data"])
+    factors_used = 0
+    last_entry_date = anchor_date
 
     for entry in sorted_entries:
         day, month, year = entry["data"].split("/")
@@ -319,7 +323,13 @@ def get_lft_vna_at(ref: date) -> float:
             break
         daily_factor = float(entry["valor"].replace(",", ".")) / 100.0
         vna *= (1 + daily_factor)
+        factors_used += 1
+        last_entry_date = entry_date
 
+    logger.debug(
+        "get_lft_vna_at ref=%s anchor=%.4f factors_used=%d last_entry=%s vna=%.4f cache_vna=%.4f",
+        ref, settings.lft_vna_anchor, factors_used, last_entry_date, round(vna, 6), _cache.lft_vna,
+    )
     return round(vna, 6)
 
 

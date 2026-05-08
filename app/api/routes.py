@@ -96,6 +96,8 @@ async def get_portfolio_value(body: PortfolioValueRequest) -> PortfolioValueResp
     """
     try:
         ref = body.calculation_date or date.today()
+        logger.info("Portfolio value bond_type=%s maturity=%s ref=%s body.calculation_date=%s quantity=%.4f",
+                     body.bond_type, body.maturity_date, ref, body.calculation_date, body.quantity)
         result = calculate_pu(body.bond_type, body.maturity_date, spread=body.spread, ref=ref)
     except ValueError as exc:
         raise HTTPException(
