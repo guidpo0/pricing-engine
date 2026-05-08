@@ -130,16 +130,17 @@ async def get_crypto_quote(slug: str) -> dict:
 async def get_crypto_quote_by_date(slug: str, date: str) -> dict:
     """
     Fetch historical market quote for a crypto slug from CoinMarketCap for a specific date.
-    Uses the v3 quotes/historical endpoint.
+    Uses the v2 quotes/historical endpoint (same version as the existing get_crypto_quote).
     """
     slug = slug.lower()
     add_crypto_slug(slug)
 
-    url = f"{settings.coin_market_base_url}/v3/cryptocurrency/quotes/historical"
+    url = f"{settings.coin_market_base_url}/v2/cryptocurrency/quotes/historical"
     params: dict[str, Any] = {
-        "symbol": slug.upper(),
+        "slug": slug,
         "time_start": f"{date}T00:00:00Z",
         "time_end": f"{date}T23:59:59Z",
+        "count": "1",
         "interval": "daily",
         "convert": "USD",
     }
@@ -155,8 +156,8 @@ async def get_crypto_quote_by_date(slug: str, date: str) -> dict:
                     cmc_data = data.get("data", [])
 
                     if not cmc_data:
-                        params.pop("symbol", None)
-                        params["slug"] = slug
+                        params.pop("slug", None)
+                        params["symbol"] = slug.upper()
                         response = await client.get(url, params=params, headers=headers)
                         if response.status_code == 200:
                             data = response.json()
@@ -196,9 +197,12 @@ async def get_crypto_quote_by_date(slug: str, date: str) -> dict:
                     else:
                         raise ValueError(f"Failed to fetch historical quote for {slug} after {MAX_RETRIES} attempts.")
 
-                elif response.status_code in (400, 404):
-                    data = response.json()
-                    error_msg = data.get("status", {}).get("error_message", "Unknown error")
+                elif response.status_code in (400, 403, 404):
+                    try:
+                        err_data = response.json()
+                        error_msg = err_data.get("status", {}).get("error_message", str(response.status_code))
+                    except Exception:
+                        error_msg = f"HTTP {response.status_code}"
                     raise ValueError(f"Crypto slug {slug} not found or invalid: {error_msg}")
 
                 else:
