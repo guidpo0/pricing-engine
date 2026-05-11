@@ -26,3 +26,21 @@ class CurrencyHistoryResponse(BaseModel):
     history: list[CurrencyHistoryItem] = Field(default_factory=list, description="Historical quotes")
     variation_30_days: Optional[float] = Field(default=None, description="Total variation percentage over the period")
 
+class BatchQuoteItem(BaseModel):
+    ticker: str = Field(..., description="Asset ticker or crypto slug")
+    market: str = Field(default="br", description="Market: 'br', 'us', or 'crypto'")
+
+class BatchQuoteRequest(BaseModel):
+    tickers: list[BatchQuoteItem] = Field(..., min_items=1, max_items=50)
+    date: Optional[str] = Field(default=None, description="Optional date (YYYY-MM-DD) for historical quotes")
+
+class BatchQuoteResult(BaseModel):
+    ticker: str = Field(..., description="Asset ticker or crypto slug")
+    unit_price: Optional[float] = Field(default=None, description="Current unit price, null if failed")
+    market: str = Field(..., description="Market: 'br', 'us', or 'crypto'")
+    updated_at: Optional[datetime] = Field(default=None, description="Timestamp of the quote data")
+    error: Optional[str] = Field(default=None, description="Error message if quote failed")
+
+class BatchQuoteResponse(BaseModel):
+    quotes: list[BatchQuoteResult] = Field(default_factory=list)
+

@@ -22,7 +22,7 @@ from app.services.pricing_engine import calculate_pu
 from app.services.cdb_pricing_engine import calculate_cdb
 from app.models.lci_lca import LCILCAValueRequest, LCILCAValueResponse
 from app.services.lci_lca_pricing_engine import calculate_lci_lca
-from app.models.market import MarketQuoteResponse, TrackedTickersResponse, CurrencyHistoryResponse, CurrencyHistoryItem
+from app.models.market import MarketQuoteResponse, TrackedTickersResponse, CurrencyHistoryResponse, CurrencyHistoryItem, BatchQuoteRequest, BatchQuoteResponse, BatchQuoteResult
 from app.services import (
     market_service, us_market_service, crypto_market_service, currency_service
 )
@@ -325,6 +325,34 @@ async def get_market_quote(
         response.position_value = round(quote_data["price"] * quantity, 2)
 
     return response
+
+
+@router.post(
+    "/market/quotes/batch",
+    response_model=BatchQuoteResponse,
+    summary="Get real-time market quotes for multiple tickers in a single call",
+    tags=["Market Data"],
+)
+async def get_batch_market_quotes(body: BatchQuoteRequest) -> BatchQuoteResponse:
+    """
+    Get real-time market quotes for multiple tickers across different markets (BR, US, crypto).
+    For Brazilian tickers (Ações/FIIs), uses a single BRAPI call with comma-separated tickers.
+    Results are cached in-memory and in the database for future requests.
+    """
+    raw = await market_service.get_batch_market_quotes(
+        [t.dict() for t in body.tickers]
+    )
+    quotes = [
+        BatchQuoteResult(
+            ticker=r["ticker"],
+            unit_price=r.get("unit_price"),
+            market=r.get("market", "br"),
+            updated_at=r.get("updated_at"),
+            error=r.get("error"),
+        )
+        for r in raw
+    ]
+    return BatchQuoteResponse(quotes=quotes)
 
 @router.get(
     "/market/quote/us/{ticker}",
