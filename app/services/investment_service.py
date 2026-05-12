@@ -231,13 +231,20 @@ async def _backfill_us_stocks(start: date_type, today: date_type) -> dict:
                     recorded_at=datetime.combine(current, datetime.min.time()),
                 )
                 filled += 1
+                current += timedelta(days=1)
+                await asyncio.sleep(8.0)
             except Exception as e:
-                pending += 1
-                logger.warning("US stock %s on %s pending: %s", ticker, current, e)
-                errors.append(f"{ticker}@{current}: {e}")
-
-            current += timedelta(days=1)
-            await asyncio.sleep(8.0)
+                error_msg = str(e)
+                if "Rate limit" in error_msg or "429" in error_msg:
+                    wait = 61 - datetime.now(timezone.utc).second
+                    logger.warning("US stock %s on %s rate limited. Waiting %ds until next minute...", ticker, current, wait)
+                    await asyncio.sleep(wait)
+                else:
+                    pending += 1
+                    logger.warning("US stock %s on %s pending: %s", ticker, current, e)
+                    errors.append(f"{ticker}@{current}: {e}")
+                    current += timedelta(days=1)
+                    await asyncio.sleep(8.0)
 
     return {"filled": filled, "pending": pending, "tickers": len(tickers), "errors": errors[:10]}
 
