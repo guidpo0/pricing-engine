@@ -178,6 +178,7 @@ async def refresh_all_tracked_tickers() -> None:
                             if "regularMarketPrice" in result:
                                 price = float(result["regularMarketPrice"])
                                 _set_in_cache(ticker, price)
+                                history_repository.insert_stock_quote(ticker, price)
                                 logger.debug("Refreshed %s successfully.", ticker)
                         break  # Break retry loop on success
                         
