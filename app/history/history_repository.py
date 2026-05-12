@@ -328,5 +328,61 @@ class HistoryRepository:
         self._execute('DELETE FROM inflation_history')
         self._execute('DELETE FROM selic_daily_factors')
 
+    def clear_stock_quotes(self) -> int:
+        """Clear only the stock_quotes_history table. Returns count of deleted rows."""
+        logger.warning("Clearing stock_quotes_history table")
+        result = self._execute('DELETE FROM stock_quotes_history RETURNING id', fetch=True)
+        return len(result)
+
+    def clear_us_stock_quotes(self) -> int:
+        """Clear only the stock_quotes_us_history table. Returns count of deleted rows."""
+        logger.warning("Clearing stock_quotes_us_history table")
+        result = self._execute('DELETE FROM stock_quotes_us_history RETURNING id', fetch=True)
+        return len(result)
+
+    def clear_currency_quotes(self) -> int:
+        """Clear only the currency_quotes_history table. Returns count of deleted rows."""
+        logger.warning("Clearing currency_quotes_history table")
+        result = self._execute('DELETE FROM currency_quotes_history RETURNING id', fetch=True)
+        return len(result)
+
+    def clear_quotes_tables(self) -> dict[str, int]:
+        """Clear stock_quotes_history, stock_quotes_us_history, and currency_quotes_history."""
+        return {
+            "stock_quotes_history": self.clear_stock_quotes(),
+            "stock_quotes_us_history": self.clear_us_stock_quotes(),
+            "currency_quotes_history": self.clear_currency_quotes(),
+        }
+
+    def get_latest_stock_quote_date(self, ticker: str) -> date_type | None:
+        """Get the latest recorded_at date for a stock ticker."""
+        result = self._execute_one(
+            '''SELECT MAX(DATE(recorded_at)) as max_date
+               FROM stock_quotes_history
+               WHERE ticker = %s''',
+            (ticker,)
+        )
+        return result["max_date"] if result and result["max_date"] else None
+
+    def get_latest_us_stock_quote_date(self, ticker: str) -> date_type | None:
+        """Get the latest recorded_at date for a US stock ticker."""
+        result = self._execute_one(
+            '''SELECT MAX(DATE(recorded_at)) as max_date
+               FROM stock_quotes_us_history
+               WHERE ticker = %s''',
+            (ticker,)
+        )
+        return result["max_date"] if result and result["max_date"] else None
+
+    def get_latest_currency_quote_date(self, currency_pair: str) -> date_type | None:
+        """Get the latest recorded_at date for a currency pair."""
+        result = self._execute_one(
+            '''SELECT MAX(DATE(recorded_at)) as max_date
+               FROM currency_quotes_history
+               WHERE currency_pair = %s''',
+            (currency_pair,)
+        )
+        return result["max_date"] if result and result["max_date"] else None
+
 
 history_repository = HistoryRepository()

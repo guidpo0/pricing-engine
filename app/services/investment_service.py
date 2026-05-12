@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date as date_type, timedelta
 
 from app.history import history_repository
 from app.history.history_repository import HISTORY_KEYS
@@ -168,13 +168,148 @@ async def update_currencies() -> dict:
         return {"status": "error", "detail": str(e)}
 
 
+BACKFILL_START_DATE = "2026-03-01"
+
+
+async def _backfill_br_stocks(start: date_type, today: date_type) -> dict:
+    """Preenche lacunas no histórico de ações BR desde start até today."""
+    tickers = get_all_tickers()
+    filled = 0
+    pending = 0
+    errors: list[str] = []
+
+    for ticker in tickers:
+        latest_date = history_repository.get_latest_stock_quote_date(ticker)
+        current = latest_date + timedelta(days=1) if latest_date else start
+
+        while current <= today:
+            try:
+                quote = await market_service.get_market_quote_by_date(ticker, current.isoformat())
+                history_repository.insert_stock_quote(
+                    ticker, quote["price"], "BRL",
+                    recorded_at=datetime.combine(current, datetime.min.time()),
+                )
+                filled += 1
+            except Exception as e:
+                pending += 1
+                logger.warning("BR stock %s on %s pending: %s", ticker, current, e)
+                errors.append(f"{ticker}@{current}: {e}")
+
+            current += timedelta(days=1)
+            await asyncio.sleep(1.0)
+
+    return {"filled": filled, "pending": pending, "tickers": len(tickers), "errors": errors[:10]}
+
+
+async def _backfill_us_stocks(start: date_type, today: date_type) -> dict:
+    """Preenche lacunas no histórico de ações US desde start até today."""
+    tickers = get_all_tickers_us()
+    filled = 0
+    pending = 0
+    errors: list[str] = []
+
+    for ticker in tickers:
+        latest_date = history_repository.get_latest_us_stock_quote_date(ticker)
+        current = latest_date + timedelta(days=1) if latest_date else start
+
+        while current <= today:
+            try:
+                quote = await us_market_service.get_us_market_quote_by_date(ticker, current.isoformat())
+                history_repository.insert_us_stock_quote(
+                    ticker, quote["price"], "USD",
+                    recorded_at=datetime.combine(current, datetime.min.time()),
+                )
+                filled += 1
+            except Exception as e:
+                pending += 1
+                logger.warning("US stock %s on %s pending: %s", ticker, current, e)
+                errors.append(f"{ticker}@{current}: {e}")
+
+            current += timedelta(days=1)
+            await asyncio.sleep(1.0)
+
+    return {"filled": filled, "pending": pending, "tickers": len(tickers), "errors": errors[:10]}
+
+
+async def _backfill_currencies(start: date_type, today: date_type) -> dict:
+    """Preenche lacunas no histórico de moedas desde start até today."""
+    pairs = get_all_currency_pairs()
+    filled = 0
+    pending = 0
+    errors: list[str] = []
+
+    for pair in pairs:
+        parts = pair.split("-")
+        if len(parts) != 2:
+            logger.warning("Invalid currency pair: %s", pair)
+            continue
+
+        from_cur, to_cur = parts[0], parts[1]
+        latest_date = history_repository.get_latest_currency_quote_date(pair)
+        current = latest_date + timedelta(days=1) if latest_date else start
+
+        while current <= today:
+            try:
+                await currency_service.get_currency_quote_by_date(from_cur, to_cur, current.isoformat())
+                filled += 1
+            except Exception as e:
+                pending += 1
+                logger.warning("Currency %s on %s pending: %s", pair, current, e)
+                errors.append(f"{pair}@{current}: {e}")
+
+            current += timedelta(days=1)
+            await asyncio.sleep(1.0)
+
+    return {"filled": filled, "pending": pending, "pairs": len(pairs), "errors": errors[:10]}
+
+
+async def verify_and_backfill(start_date: str = BACKFILL_START_DATE) -> dict:
+    """
+    Verifica se há registros de cotação para todos os ativos desde start_date
+    e preenche lacunas chamando as APIs externas.
+
+    Roda a cada execução do cron: na primeira vez após o cleanup, preenche todo
+    o histórico; nas execuções seguintes, só complementa os dias faltantes.
+    """
+    start = datetime.strptime(start_date, "%Y-%m-%d").date()
+    today = datetime.now(timezone.utc).date()
+
+    logger.info("Starting backfill verification from %s to %s", start, today)
+
+    results = {
+        "period": {"from": start_date, "to": today.isoformat()},
+        "br_stocks": await _backfill_br_stocks(start, today),
+        "us_stocks": await _backfill_us_stocks(start, today),
+        "currencies": await _backfill_currencies(start, today),
+    }
+
+    total_filled = (
+        results["br_stocks"]["filled"]
+        + results["us_stocks"]["filled"]
+        + results["currencies"]["filled"]
+    )
+    total_pending = (
+        results["br_stocks"]["pending"]
+        + results["us_stocks"]["pending"]
+        + results["currencies"]["pending"]
+    )
+    logger.info("Backfill complete: %d filled, %d pending", total_filled, total_pending)
+
+    return results
+
+
 async def update_all_cache() -> dict:
     """
     Atualiza todos os dados de investimentos e salva no histórico PostgreSQL.
     Este endpoint deve ser chamado pelo cron job externo.
+
+    1. Primeiro: verifica lacunas nas 3 tabelas de cotação (backfill desde 01/03/2026)
+    2. Depois: salva os dados mais recentes de todas as categorias
     """
     logger.info("Starting full history update...")
     results = {}
+
+    results["backfill"] = await verify_and_backfill()
 
     results["curves"] = await update_curves()
     results["inflation"] = await update_inflation()
