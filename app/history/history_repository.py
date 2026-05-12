@@ -386,5 +386,50 @@ class HistoryRepository:
         )
         return result["max_date"] if result and result["max_date"] else None
 
+    def deduplicate_all_tables(self) -> dict[str, int]:
+        """
+        Remove registros duplicados de todas as tabelas de histórico.
+
+        Regras:
+        - Tabelas com (ativo, data): mantém o registro com recorded_at mais recente de cada dia
+          (stock_quotes_history, stock_quotes_us_history, crypto_quotes_history, currency_quotes_history)
+        - Tabelas sem ativo: mantém o último registro de cada dia
+          (curves_history, inflation_history)
+        - selic_daily_factors: não precisa (PK em factor_date)
+        """
+        results: dict[str, int] = {}
+
+        tables_with_asset = [
+            ("stock_quotes_history", "ticker"),
+            ("stock_quotes_us_history", "ticker"),
+            ("crypto_quotes_history", "slug"),
+            ("currency_quotes_history", "currency_pair"),
+        ]
+        for table, asset_col in tables_with_asset:
+            sql = f"""DELETE FROM {table} WHERE id NOT IN (
+                SELECT DISTINCT ON ({asset_col}, DATE(recorded_at)) id
+                FROM {table}
+                ORDER BY {asset_col}, DATE(recorded_at), recorded_at DESC
+            )"""
+            self._execute(sql)
+            results[table] = self._execute_one(
+                f"SELECT COUNT(*) as cnt FROM {table}"
+            )["cnt"]
+
+        tables_by_day = ["curves_history", "inflation_history"]
+        for table in tables_by_day:
+            sql = f"""DELETE FROM {table} WHERE id NOT IN (
+                SELECT DISTINCT ON (DATE(recorded_at)) id
+                FROM {table}
+                ORDER BY DATE(recorded_at), recorded_at DESC
+            )"""
+            self._execute(sql)
+            results[table] = self._execute_one(
+                f"SELECT COUNT(*) as cnt FROM {table}"
+            )["cnt"]
+
+        logger.info("Deduplication complete: %s", results)
+        return results
+
 
 history_repository = HistoryRepository()

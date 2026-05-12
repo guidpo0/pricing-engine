@@ -171,6 +171,15 @@ async def update_currencies() -> dict:
 BACKFILL_START_DATE = "2026-03-01"
 
 
+async def _check_has_record(table: str, asset_col: str, asset_val: str, day: date_type) -> bool:
+    """Check if a record exists for the given asset on the exact date."""
+    result = history_repository._execute_one(
+        f"SELECT 1 FROM {table} WHERE {asset_col} = %s AND DATE(recorded_at) = %s LIMIT 1",
+        (asset_val, day)
+    )
+    return result is not None
+
+
 async def _backfill_br_stocks(start: date_type, today: date_type) -> dict:
     """Preenche lacunas no histórico de ações BR desde start até today."""
     tickers = get_all_tickers()
@@ -179,10 +188,11 @@ async def _backfill_br_stocks(start: date_type, today: date_type) -> dict:
     errors: list[str] = []
 
     for ticker in tickers:
-        latest_date = history_repository.get_latest_stock_quote_date(ticker)
-        current = latest_date + timedelta(days=1) if latest_date else start
-
+        current = start
         while current <= today:
+            if await _check_has_record("stock_quotes_history", "ticker", ticker, current):
+                current += timedelta(days=1)
+                continue
             try:
                 quote = await market_service.get_market_quote_by_date(ticker, current.isoformat())
                 history_repository.insert_stock_quote(
@@ -209,10 +219,11 @@ async def _backfill_us_stocks(start: date_type, today: date_type) -> dict:
     errors: list[str] = []
 
     for ticker in tickers:
-        latest_date = history_repository.get_latest_us_stock_quote_date(ticker)
-        current = latest_date + timedelta(days=1) if latest_date else start
-
+        current = start
         while current <= today:
+            if await _check_has_record("stock_quotes_us_history", "ticker", ticker, current):
+                current += timedelta(days=1)
+                continue
             try:
                 quote = await us_market_service.get_us_market_quote_by_date(ticker, current.isoformat())
                 history_repository.insert_us_stock_quote(
@@ -226,7 +237,7 @@ async def _backfill_us_stocks(start: date_type, today: date_type) -> dict:
                 errors.append(f"{ticker}@{current}: {e}")
 
             current += timedelta(days=1)
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(8.0)
 
     return {"filled": filled, "pending": pending, "tickers": len(tickers), "errors": errors[:10]}
 
@@ -245,10 +256,11 @@ async def _backfill_currencies(start: date_type, today: date_type) -> dict:
             continue
 
         from_cur, to_cur = parts[0], parts[1]
-        latest_date = history_repository.get_latest_currency_quote_date(pair)
-        current = latest_date + timedelta(days=1) if latest_date else start
-
+        current = start
         while current <= today:
+            if await _check_has_record("currency_quotes_history", "currency_pair", pair, current):
+                current += timedelta(days=1)
+                continue
             try:
                 await currency_service.get_currency_quote_by_date(from_cur, to_cur, current.isoformat())
                 filled += 1
@@ -298,17 +310,30 @@ async def verify_and_backfill(start_date: str = BACKFILL_START_DATE) -> dict:
     return results
 
 
+def deduplicate_all_history() -> dict:
+    """
+    Remove registros duplicados de todas as tabelas de histórico.
+    Mantém apenas o registro mais recente de cada dia (por ativo, quando aplicável).
+    """
+    logger.info("Starting history deduplication...")
+    result = history_repository.deduplicate_all_tables()
+    logger.info("History deduplication complete: %s", result)
+    return result
+
+
 async def update_all_cache() -> dict:
     """
     Atualiza todos os dados de investimentos e salva no histórico PostgreSQL.
     Este endpoint deve ser chamado pelo cron job externo.
 
-    1. Primeiro: verifica lacunas nas 3 tabelas de cotação (backfill desde 01/03/2026)
-    2. Depois: salva os dados mais recentes de todas as categorias
+    0. Remove registros duplicados de todas as tabelas de histórico
+    1. Verifica lacunas nas 3 tabelas de cotação (backfill desde 01/03/2026)
+    2. Salva os dados mais recentes de todas as categorias
     """
     logger.info("Starting full history update...")
     results = {}
 
+    results["dedup"] = deduplicate_all_history()
     results["backfill"] = await verify_and_backfill()
 
     results["curves"] = await update_curves()
