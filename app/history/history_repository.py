@@ -84,7 +84,9 @@ class HistoryRepository:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(query, params or ())
                 if fetch:
-                    return cur.fetchall()
+                    result = cur.fetchall()
+                    conn.commit()
+                    return result
                 conn.commit()
         except Exception as e:
             logger.error("Database error: %s", e)
