@@ -81,38 +81,6 @@ async def get_history_status():
     }
 
 
-@router.delete(
-    "/history",
-    summary="Clear quotes history from 3 tables",
-    tags=["Investments"],
-)
-async def clear_quotes_history():
-    """
-    Deleta APENAS os registros das 3 tabelas de cotação que tiveram dados incorretos:
-    - stock_quotes_history (BR stocks)
-    - stock_quotes_us_history (US stocks)
-    - currency_quotes_history (moedas)
-
-    As demais tabelas (curves, inflation, crypto) NÃO são afetadas.
-    Endpoint protegido pela mesma autenticação X-API-Key.
-    Uso único: chamar antes da primeira execução do backfill.
-    """
-    try:
-        result = history_repository.clear_quotes_tables()
-        logger.info("Quotes history cleared: %s", result)
-        return {
-            "status": "success",
-            "detail": "Histórico de cotações limpo com sucesso",
-            "deleted": result,
-        }
-    except Exception as exc:
-        logger.exception("Failed to clear quotes history")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "CLEAR_HISTORY_ERROR", "detail": str(exc), "code": "CLEAR_HISTORY_ERROR"},
-        )
-
-
 @router.get(
     "/tickers",
     response_model=TrackedTickersResponse,
