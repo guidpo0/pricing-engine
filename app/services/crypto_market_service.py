@@ -36,7 +36,7 @@ def _set_in_cache(slug: str, price: float) -> None:
         "expires_at": now.timestamp() + CACHE_TTL_SECONDS
     }
 
-async def get_crypto_quote(slug: str) -> dict:
+async def get_crypto_quote(slug: str, force_refresh: bool = False) -> dict:
     """
     Fetch market quote for a crypto slug from CoinMarketCap or cache/database.
     On 429, logs warning and returns fallback from database (if available).
@@ -46,25 +46,28 @@ async def get_crypto_quote(slug: str) -> dict:
     slug = slug.lower()
     add_crypto_slug(slug)
     
-    # Try to get from in-memory cache first
-    cached_price = _get_from_cache(slug)
+    db_quote = None
     
-    if cached_price is not None:
-        logger.debug("Quote for crypto slug %s found in memory cache", slug)
-        return {
-            "price": cached_price,
-            "updated_at": _quote_cache[slug]["updated_at"]
-        }
+    if not force_refresh:
+        # Try to get from in-memory cache first
+        cached_price = _get_from_cache(slug)
+        
+        if cached_price is not None:
+            logger.debug("Quote for crypto slug %s found in memory cache", slug)
+            return {
+                "price": cached_price,
+                "updated_at": _quote_cache[slug]["updated_at"]
+            }
 
-    # Try to get from database (latest historical record)
-    db_quote = history_repository.get_latest_crypto_quote(slug)
-    if db_quote:
-        logger.debug("Quote for crypto slug %s found in database", slug)
-        _set_in_cache(slug, float(db_quote["unit_price"]))
-        return {
-            "price": float(db_quote["unit_price"]),
-            "updated_at": db_quote["recorded_at"]
-        }
+        # Try to get from database (latest historical record)
+        db_quote = history_repository.get_latest_crypto_quote(slug)
+        if db_quote:
+            logger.debug("Quote for crypto slug %s found in database", slug)
+            _set_in_cache(slug, float(db_quote["unit_price"]))
+            return {
+                "price": float(db_quote["unit_price"]),
+                "updated_at": db_quote["recorded_at"]
+            }
 
     url = f"{settings.coin_market_base_url}/v2/cryptocurrency/quotes/latest"
     params = {"slug": slug}

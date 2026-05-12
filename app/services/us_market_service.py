@@ -39,7 +39,7 @@ def _set_in_cache(ticker: str, price: float) -> None:
         "expires_at": now.timestamp() + CACHE_TTL_SECONDS
     }
 
-async def get_us_market_quote(ticker: str) -> dict:
+async def get_us_market_quote(ticker: str, force_refresh: bool = False) -> dict:
     """
     Fetch market quote for a US ticker from TwelveData or cache/database.
     On 429, logs warning and returns fallback from database (if available).
@@ -51,25 +51,28 @@ async def get_us_market_quote(ticker: str) -> dict:
     # Store ticker in the background DB
     add_ticker_us(ticker)
     
-    # Try to get from in-memory cache first
-    cached_price = _get_from_cache(ticker)
+    db_quote = None
     
-    if cached_price is not None:
-        logger.debug("Quote for US ticker %s found in memory cache", ticker)
-        return {
-            "price": cached_price,
-            "updated_at": _quote_cache[ticker]["updated_at"]
-        }
+    if not force_refresh:
+        # Try to get from in-memory cache first
+        cached_price = _get_from_cache(ticker)
+        
+        if cached_price is not None:
+            logger.debug("Quote for US ticker %s found in memory cache", ticker)
+            return {
+                "price": cached_price,
+                "updated_at": _quote_cache[ticker]["updated_at"]
+            }
 
-    # Try to get from database (latest historical record)
-    db_quote = history_repository.get_latest_us_stock_quote(ticker)
-    if db_quote:
-        logger.debug("Quote for US ticker %s found in database", ticker)
-        _set_in_cache(ticker, float(db_quote["unit_price"]))
-        return {
-            "price": float(db_quote["unit_price"]),
-            "updated_at": db_quote["recorded_at"]
-        }
+        # Try to get from database (latest historical record)
+        db_quote = history_repository.get_latest_us_stock_quote(ticker)
+        if db_quote:
+            logger.debug("Quote for US ticker %s found in database", ticker)
+            _set_in_cache(ticker, float(db_quote["unit_price"]))
+            return {
+                "price": float(db_quote["unit_price"]),
+                "updated_at": db_quote["recorded_at"]
+            }
 
     url = f"{settings.twelve_data_base_url}/price"
     params = {"symbol": ticker, "apikey": settings.twelve_data_api_token}

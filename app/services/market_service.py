@@ -41,7 +41,7 @@ def _set_in_cache(ticker: str, price: float) -> None:
         "expires_at": now.timestamp() + CACHE_TTL_SECONDS
     }
 
-async def get_market_quote(ticker: str) -> dict:
+async def get_market_quote(ticker: str, force_refresh: bool = False) -> dict:
     """
     Fetch market quote for a given ticker from BRAPI or cache/database.
     Retries up to 3 times on 429 or 5xx errors with exponential backoff.
@@ -52,25 +52,28 @@ async def get_market_quote(ticker: str) -> dict:
     # Store ticker in the background DB for future automatic refreshes
     add_ticker(ticker)
     
-    # Try to get from in-memory cache first
-    cached_price = _get_from_cache(ticker)
+    db_quote = None
     
-    if cached_price is not None:
-        logger.debug("Quote for %s found in memory cache", ticker)
-        return {
-            "price": cached_price,
-            "updated_at": _quote_cache[ticker]["updated_at"]
-        }
+    if not force_refresh:
+        # Try to get from in-memory cache first
+        cached_price = _get_from_cache(ticker)
+        
+        if cached_price is not None:
+            logger.debug("Quote for %s found in memory cache", ticker)
+            return {
+                "price": cached_price,
+                "updated_at": _quote_cache[ticker]["updated_at"]
+            }
 
-    # Try to get from database (latest historical record)
-    db_quote = history_repository.get_latest_stock_quote(ticker)
-    if db_quote:
-        logger.debug("Quote for %s found in database", ticker)
-        _set_in_cache(ticker, float(db_quote["unit_price"]))
-        return {
-            "price": float(db_quote["unit_price"]),
-            "updated_at": db_quote["recorded_at"]
-        }
+        # Try to get from database (latest historical record)
+        db_quote = history_repository.get_latest_stock_quote(ticker)
+        if db_quote:
+            logger.debug("Quote for %s found in database", ticker)
+            _set_in_cache(ticker, float(db_quote["unit_price"]))
+            return {
+                "price": float(db_quote["unit_price"]),
+                "updated_at": db_quote["recorded_at"]
+            }
 
     url = f"{settings.brapi_base_url}/quote/{ticker}"
     params = {}

@@ -36,7 +36,7 @@ def _set_in_cache(pair: str, price: float) -> None:
         "expires_at": now.timestamp() + CACHE_TTL_SECONDS
     }
 
-async def get_currency_quote(from_currency: str, to_currency: str) -> dict:
+async def get_currency_quote(from_currency: str, to_currency: str, force_refresh: bool = False) -> dict:
     """
     Fetch market quote for a currency pair from AwesomeAPI or cache/database.
     On 429, logs warning and returns fallback from database (if available).
@@ -49,26 +49,29 @@ async def get_currency_quote(from_currency: str, to_currency: str) -> dict:
     pair = f"{from_currency}-{to_currency}"
     add_currency_pair(pair)
     
-    # Try to get from in-memory cache first
-    cached_price = _get_from_cache(pair)
+    db_quote = None
     
-    if cached_price is not None:
-        logger.debug("Quote for currency pair %s found in memory cache", pair)
-        return {
-            "price": cached_price,
-            "updated_at": _quote_cache[pair]["updated_at"]
-        }
+    if not force_refresh:
+        # Try to get from in-memory cache first
+        cached_price = _get_from_cache(pair)
+        
+        if cached_price is not None:
+            logger.debug("Quote for currency pair %s found in memory cache", pair)
+            return {
+                "price": cached_price,
+                "updated_at": _quote_cache[pair]["updated_at"]
+            }
 
-    # Try to get from database (latest historical record)
-    db_quote = history_repository.get_latest_currency_quote(pair)
-    if db_quote:
-        logger.debug("Quote for currency pair %s found in database", pair)
-        # Update in-memory cache
-        _set_in_cache(pair, float(db_quote["unit_price"]))
-        return {
-            "price": float(db_quote["unit_price"]),
-            "updated_at": db_quote["recorded_at"]
-        }
+        # Try to get from database (latest historical record)
+        db_quote = history_repository.get_latest_currency_quote(pair)
+        if db_quote:
+            logger.debug("Quote for currency pair %s found in database", pair)
+            # Update in-memory cache
+            _set_in_cache(pair, float(db_quote["unit_price"]))
+            return {
+                "price": float(db_quote["unit_price"]),
+                "updated_at": db_quote["recorded_at"]
+            }
     
     # Fetch from external API
     url = f"{settings.awesome_api_base_url}/json/last/{pair}"

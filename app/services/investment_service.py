@@ -82,8 +82,8 @@ async def update_us_stocks() -> dict:
     try:
         for ticker in tickers:
             try:
-                quote_data = await us_market_service.get_us_market_quote(ticker)
-                history_repository.insert_us_stock_quote(ticker, quote_data["price"], "USD")
+                quote_data = await us_market_service.get_us_market_quote(ticker, force_refresh=True)
+                history_repository.insert_us_stock_quote(ticker, quote_data["price"], "USD", recorded_at=quote_data["updated_at"])
             except Exception as e:
                 logger.warning("Failed to fetch US ticker %s: %s", ticker, e)
             await asyncio.sleep(8.0)
@@ -106,8 +106,8 @@ async def update_crypto() -> dict:
     try:
         for slug in slugs:
             try:
-                quote_data = await crypto_market_service.get_crypto_quote(slug)
-                history_repository.insert_crypto_quote(slug.upper(), quote_data["price"], "USD")
+                quote_data = await crypto_market_service.get_crypto_quote(slug, force_refresh=True)
+                history_repository.insert_crypto_quote(slug.upper(), quote_data["price"], "USD", recorded_at=quote_data["updated_at"])
             except Exception as e:
                 logger.warning("Failed to fetch crypto %s: %s", slug, e)
             await asyncio.sleep(7.0)
@@ -138,8 +138,8 @@ async def update_currencies() -> dict:
             for attempt in range(max_retries):
                 try:
                     base, quote = pair.split("-")
-                    quote_data = await currency_service.get_currency_quote(base, quote)
-                    history_repository.insert_currency_quote(pair, quote_data["price"])
+                    quote_data = await currency_service.get_currency_quote(base, quote, force_refresh=True)
+                    history_repository.insert_currency_quote(pair, quote_data["price"], recorded_at=quote_data["updated_at"])
                     logger.info("Currency %s updated: %s", pair, quote_data["price"])
                     updated_count += 1
                     break  # Sucesso, sai do loop de retry
