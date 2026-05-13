@@ -236,20 +236,28 @@ async def _backfill_us_stocks(start: date_type, today: date_type) -> dict:
                     logger.warning("US stock %s on %s rate limited. Waiting %ds until next minute...", ticker, current, wait)
                     await asyncio.sleep(wait)
                 elif "No data is available" in error_msg:
-                    previous = history_repository.get_us_stock_quote_by_date(
+                    nearest = history_repository.get_us_stock_quote_by_date(
                         ticker, (current - timedelta(days=1)).isoformat()
                     )
-                    if previous is not None:
+                    if nearest is None:
+                        nearest = history_repository._execute_one(
+                            """SELECT ticker, unit_price, currency, recorded_at
+                               FROM stock_quotes_us_history
+                               WHERE ticker = %s AND DATE(recorded_at) >= %s
+                               ORDER BY recorded_at ASC LIMIT 1""",
+                            (ticker, current + timedelta(days=1))
+                        )
+                    if nearest is not None:
                         history_repository.insert_us_stock_quote(
-                            ticker, float(previous["unit_price"]), "USD",
+                            ticker, float(nearest["unit_price"]), "USD",
                             recorded_at=datetime.combine(current, datetime.min.time()),
                         )
                         filled += 1
-                        logger.info("US stock %s on %s reused price %.2f from previous day (no API data)",
-                                    ticker, current, float(previous["unit_price"]))
+                        logger.info("US stock %s on %s reused price %.2f from nearest available date",
+                                    ticker, current, float(nearest["unit_price"]))
                     else:
                         pending += 1
-                        logger.warning("US stock %s on %s no API data and no previous price available", ticker, current)
+                        logger.warning("US stock %s on %s no API data and no nearby price available", ticker, current)
                         errors.append(f"{ticker}@{current}: {e}")
                     current += timedelta(days=1)
                     await asyncio.sleep(8.0)
