@@ -18,7 +18,8 @@ from datetime import date
 from typing import NamedTuple
 
 from app.models.cdb import CDBIndexType, CDBValueRequest
-from app.services import cdb_service, inflation_service
+from app.services import cdb_service
+from app.history import history_repository
 
 logger = logging.getLogger(__name__)
 
@@ -188,17 +189,11 @@ def price_cdb_ipca(
     """
     ref = ref or date.today()
 
-    # Retrieve IPCA monthly series from the existing inflation cache
-    cache_info = inflation_service.get_cache_info()
-    ipca_series = cache_info.get("recent_ipca") or []
-
-    # Try to build a fuller series; fall back to whatever is available
-    # (The inflation service stores the last 20 months from BCB SGS 433)
+    # Retrieve IPCA monthly series from the database
+    latest_inflation = history_repository.get_latest_inflation()
     full_series: list[dict] = []
-    try:
-        full_series = inflation_service._cache.ipca_monthly  # type: ignore[attr-defined]
-    except AttributeError:
-        full_series = ipca_series
+    if latest_inflation and latest_inflation.get("ipca_monthly"):
+        full_series = latest_inflation["ipca_monthly"]
 
     # Compute accumulated inflation since purchase_date
     inflation_factor = 1.0

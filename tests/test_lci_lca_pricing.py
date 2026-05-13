@@ -87,7 +87,11 @@ class TestLCILCAPricingEngine:
             grace_period_days=0,
         )
         
-        result = calculate_lci_lca(request)
+        with patch(
+            "app.services.cdb_pricing_engine.history_repository.get_latest_inflation",
+            return_value={"vna": 4782.22, "ipca_monthly": []},
+        ):
+            result = calculate_lci_lca(request)
         assert result.current_value >= 15000.0
         assert result.redeemable is True
 

@@ -17,7 +17,7 @@ from app.api.routes import router as api_router
 from app.api.investments_routes import router as investments_router
 from app.config import settings
 from app.services import curve_service, inflation_service
-from app.services.investment_service import load_cache_to_memory
+from app.history import history_repository
 from app.middleware import LoggingMiddleware
 
 # ---------------------------------------------------------------------------
@@ -38,7 +38,6 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     logger.info("Starting Tesouro Pricing Service (env=%s)...", settings.app_env)
-    load_cache_to_memory()
     yield
     logger.info("Tesouro Pricing Service stopped.")
 
@@ -328,13 +327,13 @@ async def health_check_options() -> dict:
     status_code=status.HTTP_200_OK,
 )
 async def readiness_check() -> dict:
-    """Readiness probe — returns OK when the service is ready with data."""
-    curve_info = curve_service.get_cache_info()
-    inflation_info = inflation_service.get_cache_info()
+    """Readiness probe — returns OK when the service has data in the database."""
+    latest_curve = history_repository.get_latest_curve()
+    latest_inflation = history_repository.get_latest_inflation()
     return {
-        "status": "ok",
-        "curve_cache": curve_info,
-        "inflation_cache": inflation_info,
+        "status": "ok" if latest_curve else "not_ready",
+        "curves_last_updated": latest_curve["recorded_at"] if latest_curve else None,
+        "inflation_last_updated": latest_inflation["recorded_at"] if latest_inflation else None,
     }
 
 

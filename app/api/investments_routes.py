@@ -14,7 +14,7 @@ from app.services import (
     currency_service
 )
 from app.services.investment_service import (
-    update_all_cache, get_cache_info
+    update_all_cache
 )
 from app.utils.database import (
     get_all_tickers, get_all_tickers_us,
@@ -62,8 +62,13 @@ async def update_cache():
     tags=["Investments"],
 )
 async def get_cache_information():
-    """Retorna informações sobre o cache persistente."""
-    return get_cache_info()
+    """Retorna informações sobre os dados mais recentes no banco."""
+    latest_curve = history_repository.get_latest_curve()
+    latest_inflation = history_repository.get_latest_inflation()
+    return {
+        "curves_last_updated": latest_curve["recorded_at"] if latest_curve else None,
+        "inflation_last_updated": latest_inflation["recorded_at"] if latest_inflation else None,
+    }
 
 
 @router.get(

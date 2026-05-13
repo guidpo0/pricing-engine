@@ -160,11 +160,10 @@ class TestCDBPrefixado:
 class TestCDBIPCA:
     def test_basic_pricing(self):
         """IPCA + 5% CDB with mocked inflation should return value > principal."""
-        with patch.object(
-            __import__("app.services.inflation_service", fromlist=["_cache"]),
-            "_cache",
-        ) as mock_cache:
-            mock_cache.ipca_monthly = _MOCK_IPCA_SERIES
+        with patch(
+            "app.services.cdb_pricing_engine.history_repository.get_latest_inflation",
+            return_value={"vna": 4782.22, "ipca_monthly": _MOCK_IPCA_SERIES},
+        ):
             result = price_cdb_ipca(10_000, 0.05, PURCHASE_DATE, REF_DATE)
 
         assert result.current_value > 10_000.0
@@ -172,11 +171,10 @@ class TestCDBIPCA:
 
     def test_higher_real_spread_yields_more(self):
         """IPCA + 8% must produce more than IPCA + 5%."""
-        with patch.object(
-            __import__("app.services.inflation_service", fromlist=["_cache"]),
-            "_cache",
-        ) as mock_cache:
-            mock_cache.ipca_monthly = _MOCK_IPCA_SERIES
+        with patch(
+            "app.services.cdb_pricing_engine.history_repository.get_latest_inflation",
+            return_value={"vna": 4782.22, "ipca_monthly": _MOCK_IPCA_SERIES},
+        ):
             r5 = price_cdb_ipca(10_000, 0.05, PURCHASE_DATE, REF_DATE)
             r8 = price_cdb_ipca(10_000, 0.08, PURCHASE_DATE, REF_DATE)
 
@@ -247,12 +245,11 @@ class TestCDBEdgeCases:
             with (
                 patch("app.services.cdb_pricing_engine.cdb_service.get_cdi_daily_factors", return_value=[]),
                 patch("app.services.cdb_pricing_engine.cdb_service.get_fallback_daily_factor", return_value=0.0004970),
-                patch.object(
-                    __import__("app.services.inflation_service", fromlist=["_cache"]),
-                    "_cache",
-                ) as mock_cache,
+                patch(
+                    "app.services.cdb_pricing_engine.history_repository.get_latest_inflation",
+                    return_value={"vna": 4782.22, "ipca_monthly": _MOCK_IPCA_SERIES},
+                ),
             ):
-                mock_cache.ipca_monthly = _MOCK_IPCA_SERIES
                 result = calculate_cdb(req)
 
             assert result.current_value > 10_000.0, f"Failed for {index_type}"

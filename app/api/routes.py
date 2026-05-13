@@ -4,7 +4,7 @@ API routes for the Tesouro Direto pricing service.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, HTTPException, Query, status, Depends
 
@@ -134,12 +134,15 @@ async def get_portfolio_value(body: PortfolioValueRequest) -> PortfolioValueResp
 
 @router.get(
     "/market/curves",
-    summary="Inspect current in-memory yield curves",
+    summary="Inspect yield curves from database",
     tags=["Market Data"],
 )
 async def get_market_curves() -> dict:
-    """Return the currently cached Pre and IPCA+ yield curves plus SELIC rate."""
-    return curve_service.get_cache_info()
+    """Return the latest Pre and IPCA+ yield curves plus SELIC rate from the database."""
+    try:
+        return curve_service.get_latest_curve()
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get(
@@ -148,8 +151,11 @@ async def get_market_curves() -> dict:
     tags=["Market Data"],
 )
 async def get_market_vna() -> dict:
-    """Return the currently cached VNA for IPCA+ bonds."""
-    return inflation_service.get_cache_info()
+    """Return the latest VNA for IPCA+ bonds from the database."""
+    latest = history_repository.get_latest_inflation()
+    if latest is None:
+        raise HTTPException(status_code=404, detail="No inflation data in database. Run update-cache first.")
+    return latest
 
 
 @router.get(

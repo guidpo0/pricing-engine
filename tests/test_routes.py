@@ -34,14 +34,22 @@ class TestHealthEndpoint:
         assert data["status"] == "ok"
         assert "curves_last_updated" not in data
 
-    def test_health_readiness(self, client):
+    def test_health_readiness(self, client, monkeypatch):
         """Readiness probe - should return OK when service has data."""
+        monkeypatch.setattr(
+            "app.main.history_repository.get_latest_curve",
+            lambda: {"recorded_at": "2026-03-07T00:00:00", "pre_curve": [], "ipca_curve": [], "selic_rate": 0.1325, "lft_vna": 18503.43},
+        )
+        monkeypatch.setattr(
+            "app.main.history_repository.get_latest_inflation",
+            lambda: {"recorded_at": "2026-03-07T00:00:00", "vna": 4782.22, "ipca_monthly": []},
+        )
         response = client.get("/health/ready")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
         assert "curves_last_updated" in data
-        assert "vna_last_updated" in data
+        assert "inflation_last_updated" in data
 
 
 # ---------------------------------------------------------------------------
