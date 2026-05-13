@@ -57,23 +57,33 @@ jobs:
 
       - name: Update Cache
         run: |
-          echo "🔄 Updating investments cache..."
           API_URL="${{ vars.API_BASE_URL }}"
           API_KEY="${{ secrets.API_AUTH_TOKEN }}"
 
-          echo "Calling: POST ${API_URL}/investments/update-cache"
+          echo "🔄 Disparando update-cache em background..."
 
-          RESP=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
-            -X POST \
-            "${API_URL}/investments/update-cache" \
+          curl -s -w "\nHTTP_CODE:%{http_code}" \
+            -X POST "${API_URL}/investments/update-cache" \
             -H "X-API-Key: ${API_KEY}" \
             -H "Content-Type: application/json" \
-            --max-time 7200)
-          HTTP_CODE=$(echo "$RESP" | grep HTTP_CODE | cut -d: -f2)
-          BODY=$(echo "$RESP" | grep -v HTTP_CODE)
+            --max-time 7200 > /tmp/update_result.txt &
+          POST_PID=$!
+
+          echo "⏳ Keep-alive loop (PID=$POST_PID)..."
+          while kill -0 $POST_PID 2>/dev/null; do
+            echo "📡 Health check..."
+            curl -s -o /dev/null -w "HTTP %{http_code}\n" \
+              "${API_URL}/health" --max-time 30 || echo "⚠️ health check failed"
+            sleep 300
+          done
+
+          wait $POST_PID
+
+          HTTP_CODE=$(grep HTTP_CODE /tmp/update_result.txt | cut -d: -f2)
+          BODY=$(grep -v HTTP_CODE /tmp/update_result.txt)
 
           echo "HTTP Status: $HTTP_CODE"
-          echo "Response: $BODY"
+          echo "$BODY"
 
           if [ "$HTTP_CODE" != "200" ]; then
             echo "❌ Update failed!"
