@@ -3,10 +3,8 @@ import logging
 from datetime import datetime, timezone, date as date_type, timedelta
 
 from app.history import history_repository
-from app.history.history_repository import HISTORY_KEYS
-from app.config import settings
 from app.services import (
-    curve_service, inflation_service, cdb_service,
+    curve_service, inflation_service,
     market_service, us_market_service, crypto_market_service,
     currency_service
 )
@@ -22,13 +20,12 @@ async def update_curves() -> dict:
     """Atualiza dados de curvas de rendimento e salva no histórico PostgreSQL."""
     logger.info("Updating curves history...")
     try:
-        await curve_service.refresh_curves()
-        curves_data = curve_service.get_cache_info()
+        pre_curve, ipca_curve, selic_rate, lft_vna, _ = await curve_service.refresh_curves()
         history_repository.insert_curves(
-            pre_curve=curves_data.get("pre_curve", {}),
-            ipca_curve=curves_data.get("ipca_curve", {}),
-            selic_rate=curves_data.get("selic_rate", 0),
-            lft_vna=curves_data.get("lft_vna", 0)
+            pre_curve=pre_curve,
+            ipca_curve=ipca_curve,
+            selic_rate=selic_rate,
+            lft_vna=lft_vna,
         )
         logger.info("Curves history updated successfully")
         return {"status": "success", "data": "curves updated"}
@@ -41,11 +38,10 @@ async def update_inflation() -> dict:
     """Atualiza dados de IPCA/VNA e salva no histórico PostgreSQL."""
     logger.info("Updating inflation history...")
     try:
-        await inflation_service.refresh_inflation()
-        inflation_data = inflation_service.get_cache_info()
+        vna, ipca_monthly = await inflation_service.refresh_inflation()
         history_repository.insert_inflation(
-            vna=inflation_data.get("vna", 0),
-            ipca_monthly=inflation_data.get("ipca_monthly", [])
+            vna=vna,
+            ipca_monthly=ipca_monthly,
         )
         logger.info("Inflation history updated successfully")
         return {"status": "success", "data": "inflation updated"}
@@ -239,6 +235,24 @@ async def _backfill_us_stocks(start: date_type, today: date_type) -> dict:
                     wait = 61 - datetime.now(timezone.utc).second
                     logger.warning("US stock %s on %s rate limited. Waiting %ds until next minute...", ticker, current, wait)
                     await asyncio.sleep(wait)
+                elif "No data is available" in error_msg:
+                    previous = history_repository.get_us_stock_quote_by_date(
+                        ticker, (current - timedelta(days=1)).isoformat()
+                    )
+                    if previous is not None:
+                        history_repository.insert_us_stock_quote(
+                            ticker, float(previous["unit_price"]), "USD",
+                            recorded_at=datetime.combine(current, datetime.min.time()),
+                        )
+                        filled += 1
+                        logger.info("US stock %s on %s reused price %.2f from previous day (no API data)",
+                                    ticker, current, float(previous["unit_price"]))
+                    else:
+                        pending += 1
+                        logger.warning("US stock %s on %s no API data and no previous price available", ticker, current)
+                        errors.append(f"{ticker}@{current}: {e}")
+                    current += timedelta(days=1)
+                    await asyncio.sleep(8.0)
                 else:
                     pending += 1
                     logger.warning("US stock %s on %s pending: %s", ticker, current, e)
@@ -361,38 +375,3 @@ async def update_all_cache() -> dict:
     }
 
 
-def get_cache_info() -> dict:
-    """Retorna informações do cache persistente."""
-    return history_repository.get_all()
-
-
-def load_cache_to_memory() -> None:
-    """Carrega o cache persistente na memória dos serviços ao iniciar a aplicação."""
-    logger.info("Loading persistent cache to memory...")
-    
-    try:
-        curves_data = history_repository.get(HISTORY_KEYS["curves"])
-        if curves_data:
-            curve_service._cache.pre_curve = curves_data.get("pre_curve", curve_service._cache.pre_curve)
-            curve_service._cache.ipca_curve = curves_data.get("ipca_curve", curve_service._cache.ipca_curve)
-            curve_service._cache.selic_rate = float(curves_data.get("selic_rate", curve_service._cache.selic_rate))
-            curve_service._cache.lft_vna = float(curves_data.get("lft_vna", curve_service._cache.lft_vna))
-            if curves_data.get("last_updated"):
-                from datetime import datetime
-                curve_service._cache.last_updated = datetime.fromisoformat(curves_data["last_updated"])
-            curve_service._cache.using_fallback = curves_data.get("using_fallback", True)
-            logger.info("Loaded curves cache: SELIC=%s", curve_service._cache.selic_rate)
-        
-        inflation_data = history_repository.get(HISTORY_KEYS["inflation"])
-        if inflation_data:
-            inflation_service._cache.vna = float(inflation_data.get("vna", inflation_service._cache.vna))
-            if inflation_data.get("last_updated"):
-                from datetime import datetime
-                inflation_service._cache.last_updated = datetime.fromisoformat(inflation_data["last_updated"])
-            inflation_service._cache.using_fallback = inflation_data.get("using_fallback", True)
-            logger.info("Loaded inflation cache: VNA=%s", inflation_service._cache.vna)
-        
-        logger.info("Persistent cache loaded to memory successfully")
-    except Exception as e:
-        logger.warning("Could not load persistent cache to memory: %s", e)
-        logger.info("Continuing with default in-memory cache")
