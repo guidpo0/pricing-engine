@@ -185,7 +185,7 @@ async def _backfill_br_stocks(start: date_type, today: date_type) -> dict:
 
     for ticker in tickers:
         current = start
-        while current <= today:
+        while current < today:
             if await _check_has_record("stock_quotes_history", "ticker", ticker, current):
                 current += timedelta(days=1)
                 continue
@@ -216,7 +216,7 @@ async def _backfill_us_stocks(start: date_type, today: date_type) -> dict:
 
     for ticker in tickers:
         current = start
-        while current <= today:
+        while current < today:
             if await _check_has_record("stock_quotes_us_history", "ticker", ticker, current):
                 current += timedelta(days=1)
                 continue
@@ -286,7 +286,7 @@ async def _backfill_currencies(start: date_type, today: date_type) -> dict:
 
         from_cur, to_cur = parts[0], parts[1]
         current = start
-        while current <= today:
+        while current < today:
             if await _check_has_record("currency_quotes_history", "currency_pair", pair, current):
                 current += timedelta(days=1)
                 continue
