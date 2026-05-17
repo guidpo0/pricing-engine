@@ -10,7 +10,9 @@ from app.services import (
 )
 from app.utils.database import (
     get_all_tickers, get_all_tickers_us,
-    get_all_crypto_slugs, get_all_currency_pairs
+    get_all_crypto_slugs, get_all_currency_pairs,
+    get_all_tickers_with_dates, get_all_tickers_us_with_dates,
+    get_all_currency_pairs_with_dates,
 )
 
 logger = logging.getLogger(__name__)
@@ -164,9 +166,6 @@ async def update_currencies() -> dict:
         return {"status": "error", "detail": str(e)}
 
 
-BACKFILL_START_DATE = "2026-03-01"
-
-
 async def _check_has_record(table: str, asset_col: str, asset_val: str, day: date_type) -> bool:
     """Check if a record exists for the given asset on the exact date."""
     result = history_repository._execute_one(
@@ -176,15 +175,14 @@ async def _check_has_record(table: str, asset_col: str, asset_val: str, day: dat
     return result is not None
 
 
-async def _backfill_br_stocks(start: date_type, today: date_type) -> dict:
-    """Preenche lacunas no histórico de ações BR desde start até today."""
-    tickers = get_all_tickers()
+async def _backfill_br_stocks(tickers_with_dates: list[tuple[str, date_type]], today: date_type) -> dict:
+    """Preenche lacunas no histórico de ações BR desde a data de inclusão de cada ticker."""
     filled = 0
     pending = 0
     errors: list[str] = []
 
-    for ticker in tickers:
-        current = start
+    for ticker, added_at in tickers_with_dates:
+        current = added_at
         while current < today:
             if await _check_has_record("stock_quotes_history", "ticker", ticker, current):
                 current += timedelta(days=1)
@@ -204,18 +202,17 @@ async def _backfill_br_stocks(start: date_type, today: date_type) -> dict:
             current += timedelta(days=1)
             await asyncio.sleep(1.0)
 
-    return {"filled": filled, "pending": pending, "tickers": len(tickers), "errors": errors[:10]}
+    return {"filled": filled, "pending": pending, "tickers": len(tickers_with_dates), "errors": errors[:10]}
 
 
-async def _backfill_us_stocks(start: date_type, today: date_type) -> dict:
-    """Preenche lacunas no histórico de ações US desde start até today."""
-    tickers = get_all_tickers_us()
+async def _backfill_us_stocks(tickers_with_dates: list[tuple[str, date_type]], today: date_type) -> dict:
+    """Preenche lacunas no histórico de ações US desde a data de inclusão de cada ticker."""
     filled = 0
     pending = 0
     errors: list[str] = []
 
-    for ticker in tickers:
-        current = start
+    for ticker, added_at in tickers_with_dates:
+        current = added_at
         while current < today:
             if await _check_has_record("stock_quotes_us_history", "ticker", ticker, current):
                 current += timedelta(days=1)
@@ -268,24 +265,23 @@ async def _backfill_us_stocks(start: date_type, today: date_type) -> dict:
                     current += timedelta(days=1)
                     await asyncio.sleep(8.0)
 
-    return {"filled": filled, "pending": pending, "tickers": len(tickers), "errors": errors[:10]}
+    return {"filled": filled, "pending": pending, "tickers": len(tickers_with_dates), "errors": errors[:10]}
 
 
-async def _backfill_currencies(start: date_type, today: date_type) -> dict:
-    """Preenche lacunas no histórico de moedas desde start até today."""
-    pairs = get_all_currency_pairs()
+async def _backfill_currencies(pairs_with_dates: list[tuple[str, date_type]], today: date_type) -> dict:
+    """Preenche lacunas no histórico de moedas desde a data de inclusão de cada pair."""
     filled = 0
     pending = 0
     errors: list[str] = []
 
-    for pair in pairs:
+    for pair, added_at in pairs_with_dates:
         parts = pair.split("-")
         if len(parts) != 2:
             logger.warning("Invalid currency pair: %s", pair)
             continue
 
         from_cur, to_cur = parts[0], parts[1]
-        current = start
+        current = added_at
         while current < today:
             if await _check_has_record("currency_quotes_history", "currency_pair", pair, current):
                 current += timedelta(days=1)
@@ -301,27 +297,30 @@ async def _backfill_currencies(start: date_type, today: date_type) -> dict:
             current += timedelta(days=1)
             await asyncio.sleep(1.0)
 
-    return {"filled": filled, "pending": pending, "pairs": len(pairs), "errors": errors[:10]}
+    return {"filled": filled, "pending": pending, "pairs": len(pairs_with_dates), "errors": errors[:10]}
 
 
-async def verify_and_backfill(start_date: str = BACKFILL_START_DATE) -> dict:
+async def verify_and_backfill() -> dict:
     """
-    Verifica se há registros de cotação para todos os ativos desde start_date
-    e preenche lacunas chamando as APIs externas.
-
-    Roda a cada execução do cron: na primeira vez após o cleanup, preenche todo
-    o histórico; nas execuções seguintes, só complementa os dias faltantes.
+    Verifica se há registros de cotação para todos os ativos desde a data
+    em que cada ativo foi adicionado (tracked_*) e preenche lacunas chamando
+    as APIs externas.
     """
-    start = datetime.strptime(start_date, "%Y-%m-%d").date()
     today = datetime.now(timezone.utc).date()
 
-    logger.info("Starting backfill verification from %s to %s", start, today)
+    br_tickers = get_all_tickers_with_dates()
+    us_tickers = get_all_tickers_us_with_dates()
+    currency_pairs = get_all_currency_pairs_with_dates()
+
+    logger.info(
+        "Starting backfill verification for %d BR stocks, %d US stocks, %d currency pairs",
+        len(br_tickers), len(us_tickers), len(currency_pairs),
+    )
 
     results = {
-        "period": {"from": start_date, "to": today.isoformat()},
-        "br_stocks": await _backfill_br_stocks(start, today),
-        "us_stocks": await _backfill_us_stocks(start, today),
-        "currencies": await _backfill_currencies(start, today),
+        "br_stocks": await _backfill_br_stocks(br_tickers, today),
+        "us_stocks": await _backfill_us_stocks(us_tickers, today),
+        "currencies": await _backfill_currencies(currency_pairs, today),
     }
 
     total_filled = (
@@ -356,7 +355,7 @@ async def update_all_cache() -> dict:
     Este endpoint deve ser chamado pelo cron job externo.
 
     0. Remove registros duplicados de todas as tabelas de histórico
-    1. Verifica lacunas nas 3 tabelas de cotação (backfill desde 01/03/2026)
+    1. Verifica lacunas nas 3 tabelas de cotação (backfill desde a data de inclusão de cada ativo)
     2. Salva os dados mais recentes de todas as categorias
     """
     logger.info("Starting full history update...")

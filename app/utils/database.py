@@ -4,7 +4,7 @@ Database utilities for Pricing Engine using PostgreSQL.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date as date_type
 from contextlib import contextmanager
 
 import psycopg2
@@ -126,6 +126,18 @@ def get_all_tickers() -> list[str]:
         return []
 
 
+def get_all_tickers_with_dates() -> list[tuple[str, date_type]]:
+    """Retrieve all tracked tickers with their added_at dates."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT ticker, added_at FROM tracked_tickers ORDER BY ticker ASC')
+                return [(row[0], row[1].date()) for row in cur.fetchall()]
+    except Exception as e:
+        logger.error("Failed to retrieve tickers with dates from database: %s", e)
+        return []
+
+
 def add_ticker_us(ticker: str) -> None:
     """Add a new US ticker to be tracked by the background job."""
     ticker = ticker.upper()
@@ -150,6 +162,18 @@ def get_all_tickers_us() -> list[str]:
                 return [row[0] for row in cur.fetchall()]
     except Exception as e:
         logger.error("Failed to retrieve US tickers from database: %s", e)
+        return []
+
+
+def get_all_tickers_us_with_dates() -> list[tuple[str, date_type]]:
+    """Retrieve all tracked US tickers with their added_at dates."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT ticker, added_at FROM tracked_tickers_us ORDER BY ticker ASC')
+                return [(row[0], row[1].date()) for row in cur.fetchall()]
+    except Exception as e:
+        logger.error("Failed to retrieve US tickers with dates from database: %s", e)
         return []
 
 
@@ -204,6 +228,18 @@ def get_all_currency_pairs() -> list[str]:
                 return [row[0] for row in cur.fetchall()]
     except Exception as e:
         logger.error("Failed to retrieve currency pairs from database: %s", e)
+        return []
+
+
+def get_all_currency_pairs_with_dates() -> list[tuple[str, date_type]]:
+    """Retrieve all tracked currency pairs with their added_at dates."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute('SELECT currency_pair, added_at FROM tracked_currencies ORDER BY currency_pair ASC')
+                return [(row[0], row[1].date()) for row in cur.fetchall()]
+    except Exception as e:
+        logger.error("Failed to retrieve currency pairs with dates from database: %s", e)
         return []
 
 
