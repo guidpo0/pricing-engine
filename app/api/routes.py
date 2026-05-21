@@ -490,6 +490,62 @@ async def get_crypto_quote(
 
     return response
 
+# ---------------------------------------------------------------------------
+# Currency history endpoint
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/market/currency/history/{currency_pair}",
+    response_model=CurrencyHistoryResponse,
+    summary="Get historical exchange rate data for a currency pair",
+    tags=["Market Data"],
+)
+async def get_currency_history(
+    currency_pair: str,
+    days: int = Query(30, ge=1, le=365, description="Number of days to retrieve")
+) -> CurrencyHistoryResponse:
+    """
+    Get historical exchange rate data for a currency pair over the specified period.
+    Returns daily quotes with calculated percentage changes between days.
+    """
+    pair = currency_pair.upper().replace("-", "-")
+    
+    history_data = history_repository.get_currency_history(pair, days)
+    
+    if not history_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "HISTORY_NOT_FOUND", "detail": f"No history found for currency pair {pair}", "code": "HISTORY_NOT_FOUND"},
+        )
+    
+    history_items = []
+    for i, record in enumerate(history_data):
+        change = None
+        if i > 0 and history_data[i-1].get("unit_price"):
+            previous_price = float(history_data[i-1]["unit_price"])
+            current_price = float(record["unit_price"])
+            if previous_price > 0:
+                change = round(((current_price - previous_price) / previous_price) * 100, 4)
+        
+        history_items.append(CurrencyHistoryItem(
+            date=record["recorded_at"],
+            price=float(record["unit_price"]),
+            change=change
+        ))
+    
+    variation_30_days = None
+    if len(history_items) >= 2:
+        first_price = history_items[-1].price
+        last_price = history_items[0].price
+        if first_price > 0:
+            variation_30_days = round(((last_price - first_price) / first_price) * 100, 4)
+    
+    return CurrencyHistoryResponse(
+        currency_pair=pair,
+        history=history_items,
+        variation_30_days=variation_30_days
+    )
+
 @router.get(
     "/market/currency/{from_currency}/{to_currency}",
     response_model=MarketQuoteResponse,
@@ -563,62 +619,6 @@ async def get_currency_quote(
         response.position_value = round(quote_data["price"] * quantity, 6)
 
     return response
-
-# ---------------------------------------------------------------------------
-# Currency history endpoint
-# ---------------------------------------------------------------------------
-
-@router.get(
-    "/market/currency/history/{currency_pair}",
-    response_model=CurrencyHistoryResponse,
-    summary="Get historical exchange rate data for a currency pair",
-    tags=["Market Data"],
-)
-async def get_currency_history(
-    currency_pair: str,
-    days: int = Query(30, ge=1, le=365, description="Number of days to retrieve")
-) -> CurrencyHistoryResponse:
-    """
-    Get historical exchange rate data for a currency pair over the specified period.
-    Returns daily quotes with calculated percentage changes between days.
-    """
-    pair = currency_pair.upper().replace("-", "-")
-    
-    history_data = history_repository.get_currency_history(pair, days)
-    
-    if not history_data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "HISTORY_NOT_FOUND", "detail": f"No history found for currency pair {pair}", "code": "HISTORY_NOT_FOUND"},
-        )
-    
-    history_items = []
-    for i, record in enumerate(history_data):
-        change = None
-        if i > 0 and history_data[i-1].get("unit_price"):
-            previous_price = float(history_data[i-1]["unit_price"])
-            current_price = float(record["unit_price"])
-            if previous_price > 0:
-                change = round(((current_price - previous_price) / previous_price) * 100, 4)
-        
-        history_items.append(CurrencyHistoryItem(
-            date=record["recorded_at"],
-            price=float(record["unit_price"]),
-            change=change
-        ))
-    
-    variation_30_days = None
-    if len(history_items) >= 2:
-        first_price = history_items[-1].price
-        last_price = history_items[0].price
-        if first_price > 0:
-            variation_30_days = round(((last_price - first_price) / first_price) * 100, 4)
-    
-    return CurrencyHistoryResponse(
-        currency_pair=pair,
-        history=history_items,
-        variation_30_days=variation_30_days
-    )
 
 # ---------------------------------------------------------------------------
 # CDB pricing endpoint
