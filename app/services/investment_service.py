@@ -355,14 +355,13 @@ async def update_all_cache() -> dict:
     Este endpoint deve ser chamado pelo cron job externo.
 
     0. Remove registros duplicados de todas as tabelas de histórico
-    1. Verifica lacunas nas 3 tabelas de cotação (backfill desde a data de inclusão de cada ativo)
-    2. Salva os dados mais recentes de todas as categorias
+    1. Salva os dados mais recentes de todas as categorias
+    2. Verifica lacunas nas 3 tabelas de cotação (backfill desde a data de inclusão de cada ativo)
     """
     logger.info("Starting full history update...")
     results = {}
 
     results["dedup"] = deduplicate_all_history()
-    results["backfill"] = await verify_and_backfill()
 
     results["curves"] = await update_curves()
     results["inflation"] = await update_inflation()
@@ -370,6 +369,8 @@ async def update_all_cache() -> dict:
     results["us_stocks"] = await update_us_stocks()
     results["crypto"] = await update_crypto()
     results["currencies"] = await update_currencies()
+
+    results["backfill"] = await verify_and_backfill()
 
     cache_info = history_repository.get_updated_at()
 
