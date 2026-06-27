@@ -210,77 +210,95 @@ async def get_market_quote_by_date(ticker: str, date: str) -> dict:
     add_ticker(ticker)
 
     url = f"{settings.brapi_base_url}/quote/{ticker}"
-    params: dict[str, Any] = {"range": "3mo", "interval": "1d", "fundamental": "false"}
-    if settings.brapi_token:
-        params["token"] = settings.brapi_token
 
     date_target = datetime.strptime(date, "%Y-%m-%d").date()
+
+    strategies = []
+
+    base_params: dict[str, Any] = {"interval": "1d", "fundamental": "false"}
+    if settings.brapi_token:
+        base_params["token"] = settings.brapi_token
+
     start_date = (date_target - timedelta(days=60)).strftime("%Y-%m-%d")
-    end_date = date
+    strategies.append({
+        "name": f"startDate={start_date}/endDate={date}",
+        "params": {**base_params, "startDate": start_date, "endDate": date},
+    })
 
-    params["startDate"] = start_date
-    params["endDate"] = end_date
-    params.pop("range", None)
-    logger.info("Fetching quote for %s with window %s to %s", ticker, start_date, end_date)
+    strategies.append({
+        "name": "range=1y",
+        "params": {**base_params, "range": "1y"},
+    })
 
-    async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-        for attempt in range(MAX_RETRIES):
-            try:
-                async with _brapi_lock:
-                    global _last_request_time
-                    now = asyncio.get_event_loop().time()
-                    time_since_last = now - _last_request_time
-                    if time_since_last < MIN_REQUEST_INTERVAL_SECONDS:
-                        await asyncio.sleep(MIN_REQUEST_INTERVAL_SECONDS - time_since_last)
-                    _last_request_time = asyncio.get_event_loop().time()
-                    response = await client.get(url, params=params)
+    for strategy in strategies:
+        p = strategy["params"]
+        logger.info("Trying strategy %s for %s target date %s", strategy["name"], ticker, date)
 
-                if response.status_code == 200:
-                    data = response.json()
-                    results = data.get("results", [])
-                    if not results:
-                        raise ValueError(f"No results found for ticker {ticker}")
+        async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
+            for attempt in range(MAX_RETRIES):
+                try:
+                    async with _brapi_lock:
+                        global _last_request_time
+                        now = asyncio.get_event_loop().time()
+                        time_since_last = now - _last_request_time
+                        if time_since_last < MIN_REQUEST_INTERVAL_SECONDS:
+                            await asyncio.sleep(MIN_REQUEST_INTERVAL_SECONDS - time_since_last)
+                        _last_request_time = asyncio.get_event_loop().time()
+                        response = await client.get(url, params=p)
 
-                    hist_data = results[0].get("historicalDataPrice", [])
-                    if not hist_data:
-                        raise ValueError(f"No historical data found for ticker {ticker}")
+                    if response.status_code == 200:
+                        data = response.json()
+                        results = data.get("results", [])
+                        if not results:
+                            raise ValueError(f"No results found for ticker {ticker}")
 
-                    best: dict[str, Any] | None = None
-                    for item in hist_data:
-                        item_date = datetime.fromtimestamp(item["date"]).date()
-                        if item_date <= date_target:
-                            if best is None or item_date > best["date"]:
-                                best = {"date": item_date, "close": float(item["close"])}
+                        hist_data = results[0].get("historicalDataPrice", [])
+                        if not hist_data:
+                            raise ValueError(f"No historical data found for ticker {ticker}")
 
-                    if best is None:
-                        raise ValueError(f"No quote found for {ticker} on or before {date}")
+                        best: dict[str, Any] | None = None
+                        for item in hist_data:
+                            item_date = datetime.fromtimestamp(item["date"]).date()
+                            if item_date <= date_target:
+                                if best is None or item_date > best["date"]:
+                                    best = {"date": item_date, "close": float(item["close"])}
 
-                    logger.info("Historical quote for %s on %s: %.2f", ticker, best["date"], best["close"])
-                    return {
-                        "price": best["close"],
-                        "updated_at": best["date"].isoformat()
-                    }
+                        if best is None:
+                            raise ValueError(f"No quote found for {ticker} on or before {date}")
 
-                elif response.status_code == 429 or response.status_code >= 500:
-                    logger.warning(
-                        "Attempt %d/%d failed for %s (historical). Status %d. Retrying...",
-                        attempt + 1, MAX_RETRIES, ticker, response.status_code
-                    )
+                        logger.info("Historical quote for %s on %s: %.2f", ticker, best["date"], best["close"])
+                        return {
+                            "price": best["close"],
+                            "updated_at": best["date"].isoformat()
+                        }
+
+                    elif response.status_code == 400:
+                        logger.warning(
+                            "Strategy %s returned 400 for %s, trying next strategy...",
+                            strategy["name"], ticker
+                        )
+                        break
+
+                    elif response.status_code == 429 or response.status_code >= 500:
+                        logger.warning(
+                            "Attempt %d/%d failed for %s (historical). Status %d. Retrying...",
+                            attempt + 1, MAX_RETRIES, ticker, response.status_code
+                        )
+                        if attempt < MAX_RETRIES - 1:
+                            await asyncio.sleep(2 ** attempt)
+                        else:
+                            raise ValueError(f"Failed to fetch historical quote for {ticker} after {MAX_RETRIES} attempts. Status: {response.status_code}")
+                    elif response.status_code == 404:
+                        raise ValueError(f"Ticker {ticker} not found")
+                    else:
+                        response.raise_for_status()
+
+                except httpx.RequestError as e:
+                    logger.error("Request error for %s (historical) on attempt %d: %s", ticker, attempt + 1, e)
                     if attempt < MAX_RETRIES - 1:
                         await asyncio.sleep(2 ** attempt)
                     else:
-                        raise ValueError(f"Failed to fetch historical quote for {ticker} after {MAX_RETRIES} attempts. Status: {response.status_code}")
-                elif response.status_code == 404:
-                    raise ValueError(f"Ticker {ticker} not found")
-                else:
-                    response.raise_for_status()
-
-            except httpx.RequestError as e:
-                logger.error("Request error for %s (historical) on attempt %d: %s", ticker, attempt + 1, e)
-                if attempt < MAX_RETRIES - 1:
-                    await asyncio.sleep(2 ** attempt)
-                else:
-                    raise ValueError(f"Network error fetching historical quote for {ticker}: {str(e)}") from e
+                        raise ValueError(f"Network error fetching historical quote for {ticker}: {str(e)}") from e
 
     raise ValueError(f"No quote found for {ticker} on or before {date}")
 
