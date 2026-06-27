@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import httpx
 import asyncio
 from typing import Dict, Any, Optional
@@ -215,24 +215,13 @@ async def get_market_quote_by_date(ticker: str, date: str) -> dict:
         params["token"] = settings.brapi_token
 
     date_target = datetime.strptime(date, "%Y-%m-%d").date()
-    today = datetime.now().date()
-    days_diff = (today - date_target).days
+    start_date = (date_target - timedelta(days=60)).strftime("%Y-%m-%d")
+    end_date = date
 
-    if days_diff <= 5:
-        range_str = "5d"
-    elif days_diff <= 30:
-        range_str = "1mo"
-    elif days_diff <= 90:
-        range_str = "3mo"
-    elif days_diff <= 180:
-        range_str = "6mo"
-    elif days_diff <= 365:
-        range_str = "1y"
-    else:
-        range_str = "5y"
-
-    params["range"] = range_str
-    logger.info("Adjusted range to %s for %s target date %s (%d days ago)", range_str, ticker, date, days_diff)
+    params["startDate"] = start_date
+    params["endDate"] = end_date
+    params.pop("range", None)
+    logger.info("Fetching quote for %s with window %s to %s", ticker, start_date, end_date)
 
     async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
         for attempt in range(MAX_RETRIES):
@@ -293,7 +282,7 @@ async def get_market_quote_by_date(ticker: str, date: str) -> dict:
                 else:
                     raise ValueError(f"Network error fetching historical quote for {ticker}: {str(e)}") from e
 
-    raise ValueError(f"Unexpected error fetching historical quote for {ticker}")
+    raise ValueError(f"No quote found for {ticker} on or before {date}")
 
 
 async def get_batch_market_quotes(tickers: list[dict]) -> list[dict]:
