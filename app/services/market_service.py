@@ -215,6 +215,26 @@ async def get_market_quote_by_date(ticker: str, date: str) -> dict:
         params["token"] = settings.brapi_token
 
     date_target = datetime.strptime(date, "%Y-%m-%d").date()
+    today = datetime.now().date()
+    days_diff = (today - date_target).days
+
+    if days_diff <= 5:
+        range_str = "5d"
+    elif days_diff <= 30:
+        range_str = "1mo"
+    elif days_diff <= 90:
+        range_str = "3mo"
+    elif days_diff <= 180:
+        range_str = "6mo"
+    elif days_diff <= 365:
+        range_str = "1y"
+    elif days_diff <= 730:
+        range_str = "2y"
+    else:
+        range_str = "5y"
+
+    params["range"] = range_str
+    logger.info("Adjusted range to %s for %s target date %s (%d days ago)", range_str, ticker, date, days_diff)
 
     async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
         for attempt in range(MAX_RETRIES):
