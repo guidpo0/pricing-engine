@@ -228,8 +228,6 @@ async def get_market_quote_by_date(ticker: str, date: str) -> dict:
         range_str = "6mo"
     elif days_diff <= 365:
         range_str = "1y"
-    elif days_diff <= 730:
-        range_str = "2y"
     else:
         range_str = "5y"
 
