@@ -192,6 +192,18 @@ def add_crypto_slug(slug: str) -> None:
         logger.error("Failed to add crypto slug %s to database: %s", slug, e)
 
 
+def remove_crypto_slug(slug: str) -> None:
+    """Remove a crypto slug from tracking (e.g. after renaming)."""
+    slug = slug.lower()
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute('DELETE FROM tracked_crypto_slugs WHERE slug = %s', (slug,))
+                conn.commit()
+    except Exception as e:
+        logger.error("Failed to remove crypto slug %s from database: %s", slug, e)
+
+
 def get_all_crypto_slugs() -> list[str]:
     """Retrieve all tracked crypto slugs from the database."""
     try:

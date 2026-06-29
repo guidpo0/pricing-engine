@@ -10,6 +10,23 @@ from app.history.history_repository import history_repository
 
 logger = logging.getLogger(__name__)
 
+# Maps old/renamed slugs to their current CoinMarketCap slug
+SLUG_MAP: dict[str, str] = {
+    "avalanche-2": "avalanche",
+    "binancecoin": "binance-coin",
+}
+
+def resolve_slug(slug: str) -> str:
+    slug = slug.lower()
+    if slug in SLUG_MAP:
+        new_slug = SLUG_MAP[slug]
+        logger.info("Slug %s renamed to %s, updating database", slug, new_slug)
+        from app.utils.database import add_crypto_slug, remove_crypto_slug
+        add_crypto_slug(new_slug)
+        remove_crypto_slug(slug)
+        return new_slug
+    return slug
+
 # Simple thread-safe in-memory cache
 _quote_cache: Dict[str, Any] = {}
 CACHE_TTL_SECONDS = 30 * 60  # 30 minutes
@@ -43,7 +60,7 @@ async def get_crypto_quote(slug: str, force_refresh: bool = False) -> dict:
     On 5xx, retries up to 3 times with exponential backoff.
     Saves all quotes to PostgreSQL history.
     """
-    slug = slug.lower()
+    slug = resolve_slug(slug)
     add_crypto_slug(slug)
     
     db_quote = None

@@ -430,7 +430,8 @@ async def _get_batch_crypto_quotes(items: list[dict]) -> list[dict]:
     missing: list[str] = []
 
     for item in items:
-        slug = item["ticker"].lower()
+        from app.services.crypto_market_service import resolve_slug
+        slug = resolve_slug(item["ticker"])
         cached = _crypto_get_cache(slug)
         if cached is not None:
             results.append({"ticker": slug, "unit_price": cached, "market": "crypto", "updated_at": None, "error": None})
